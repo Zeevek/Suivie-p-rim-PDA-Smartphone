@@ -1,7 +1,7 @@
 /* Service worker — cache hors-ligne
    Compatible GitHub Pages (chemins relatifs à l'emplacement de sw.js).
    Incrémentez CACHE à chaque mise à jour pour forcer le rafraîchissement. */
-const CACHE = 'perimes-v6';
+const CACHE = 'perimes-v8';
 
 const ASSETS = [
   './',

@@ -7,7 +7,34 @@ Fonctionne sur **Android**, **iOS** et sur le **PDA Honeywell EDA51**. Aucune do
 
 ---
 
-## 1. Installer l'application
+## 1. Mettre en ligne sur GitHub Pages
+
+### Option A — par le site GitHub (le plus simple)
+
+1. Sur https://github.com, cliquez **New** pour créer un dépôt, par exemple `perimes-pharmacie`. Laissez-le **Public**.
+2. Dans le dépôt : **Add file → Upload files**, puis glissez **tout le contenu de ce dossier** (le fichier `index.html`, `manifest.webmanifest`, `sw.js`, `.nojekyll` et le dossier `icons/`). **Ne glissez pas le dossier parent**, mais bien les fichiers qui sont dedans.
+3. **Commit changes**.
+4. Onglet **Settings → Pages**. Sous *Build and deployment* → *Source*, choisissez **Deploy from a branch**, branche **main**, dossier **/ (root)**, puis **Save**.
+5. Après une minute, l'adresse s'affiche, du type :
+   `https://VOTRE-COMPTE.github.io/perimes-pharmacie/`
+
+> ⚠️ Le service worker (mode hors-ligne) n'est actif qu'en **HTTPS**. GitHub Pages est en HTTPS : c'est parfait. Il ne fonctionne pas en ouvrant le fichier directement depuis le disque (`file://`).
+
+### Option B — en ligne de commande
+
+```bash
+git init
+git add .
+git commit -m "PWA gestion des périmés"
+git branch -M main
+git remote add origin https://github.com/VOTRE-COMPTE/perimes-pharmacie.git
+git push -u origin main
+```
+Puis activez **Settings → Pages** comme ci-dessus.
+
+---
+
+## 2. Installer l'application
 
 Ouvrez l'adresse GitHub Pages sur l'appareil, puis :
 
@@ -18,7 +45,7 @@ Un bouton **« Installer sur cet appareil »** est aussi proposé dans l'onglet 
 
 ---
 
-## 2. Le scan sur le PDA Honeywell EDA51
+## 3. Le scan sur le PDA Honeywell EDA51
 
 Le PDA a un lecteur intégré. Pour qu'il « tape » le code dans l'app, il doit être en mode **clavier (keyboard wedge)** :
 
@@ -40,12 +67,14 @@ L'app propose un bouton **« Scanner avec la caméra »** qui lit le **Datamatri
 
 ---
 
-## 3. La base produits intégrée — `data/produits.json`
+## 4. La base produits intégrée — `data/produits.json`
 
-Le dépôt contient **`data/produits.json`**, la base **CIP → nom** générée depuis votre inventaire Smart Rx : **~118 500 produits** (catalogue complet). L'application la **charge en mémoire au démarrage** (chargement non bloquant), puis remplit le nom automatiquement à chaque scan.
+Le dépôt contient **`data/produits.json`**, la base **CIP → nom** générée depuis votre inventaire Smart Rx. Elle contient les **produits en stock** (St. Réel > 0), soit **~13 500 références** (612 Ko). Ce périmètre couvre ce qui est physiquement en rayon — donc ce que vous scannez — tout en restant assez léger pour tourner sur le PDA Honeywell (RAM limitée). L'application la **charge en mémoire au démarrage** (chargement non bloquant), puis remplit le nom automatiquement à chaque scan.
 
-- Le fichier n'est **pas recopié dans la mémoire du téléphone** : il *est* la base, mise en cache hors-ligne par le service worker. C'est ce qui permet de gérer 118 000 produits sans ralentir l'appareil.
-- Les noms saisis ou corrigés à la main (via **Réglages → Catalogue produits**, ou l'édition d'une fiche) ont la **priorité** sur la base intégrée.
+> Le catalogue **complet** (118 000 réf., 5,3 Mo) faisait **planter le PDA** par manque de mémoire. Si vous voulez malgré tout une couverture totale sur les téléphones plus puissants, c'est possible en stockant la base dans la mémoire locale du navigateur (IndexedDB) plutôt qu'en RAM — demandez-le moi.
+
+- Un produit **hors stock** scanné n'aura pas son nom pré-rempli : vous le saisissez une fois, il est mémorisé.
+- Les noms saisis ou corrigés à la main ont la **priorité** sur la base intégrée.
 
 **Mettre à jour la liste plus tard :** ré-exportez l'inventaire depuis Smart Rx et régénérez `data/produits.json` (format : un objet JSON `{"cip13":"nom", …}`, en UTF-8). L'export brut Smart Rx est en jeu de caractères DOS (cp850) avec des CIP espacés : il doit être converti avant. Le plus simple est de me renvoyer le nouvel export, je régénère le fichier. Pensez ensuite à incrémenter `const CACHE` dans `sw.js` pour que les appareils déjà installés rechargent la base.
 
@@ -53,14 +82,14 @@ Pour des **ajouts ou corrections ponctuels**, l'onglet **Réglages → Catalogue
 
 ---
 
-## 4. Mettre à jour l'application plus tard
+## 5. Mettre à jour l'application plus tard
 
 1. Modifiez `index.html` (ou un autre fichier) et ré-uploadez-le sur GitHub.
 2. Dans `sw.js`, changez la ligne `const CACHE = 'perimes-v4';` en `'perimes-v5'`, etc. Cela force les appareils à récupérer la nouvelle version au prochain lancement.
 
 ---
 
-## 5. Sauvegarde des données
+## 6. Sauvegarde des données
 
 Les données restent sur chaque appareil. Depuis **Réglages → Sauvegarde**, exportez un fichier `.json` régulièrement (surtout sur iOS, où le navigateur peut effacer les données en cas de manque de place). Le même fichier permet de tout réimporter, ou de transférer le suivi d'un appareil à un autre.
 
@@ -73,7 +102,7 @@ index.html               L'application (un seul fichier)
 manifest.webmanifest     Métadonnées d'installation (nom, icônes, couleurs)
 sw.js                    Service worker (fonctionnement hors-ligne)
 .nojekyll                Sert les fichiers tels quels sur GitHub Pages
-data/produits.json       Base produits CIP -> nom (~118 500 réf., depuis Smart Rx)
+data/produits.json       Base produits CIP -> nom (~13 500 réf. en stock, Smart Rx)
 vendor/zxing.min.js      Lecteur caméra ZXing (auto-hébergé, iOS + Android)
 vendor/LISEZMOI.txt      Note sur le lecteur ZXing / mise à jour
 icons/                   Icônes de l'application
