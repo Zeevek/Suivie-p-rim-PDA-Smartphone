@@ -89,7 +89,25 @@ Pour des **ajouts ou corrections ponctuels**, l'onglet **Réglages → Catalogue
 
 ---
 
-## 6. Sauvegarde des données
+## 6. Plusieurs téléphones + un PC central (fichier mère)
+
+Chaque appareil garde ses données localement. Pour centraliser sur un PC :
+
+1. **Sur chaque téléphone** : après une session de scan, **Réglages → Exporter** produit un fichier `.json`. Envoyez-le au PC (mail, câble, cloud…).
+2. **Sur le PC** (qui détient le « fichier mère ») : ouvrez la même application dans un navigateur, puis **Réglages → Fusionner** et choisissez le fichier reçu. La fusion **ajoute** les scans sans rien effacer, et **ignore les doublons** (chaque scan a un identifiant unique, donc on peut refusionner un même fichier sans risque).
+3. **Réglages → Exporter** sur le PC pour enregistrer la nouvelle version du fichier mère (gardez une copie datée).
+
+Les trois boutons de fichiers, pour ne pas se tromper :
+
+- **Exporter** : crée un fichier de vos données.
+- **Fusionner** : *ajoute* un fichier aux données actuelles (sans effacer) — c'est ce qui construit le fichier mère.
+- **Remplacer** : *écrase tout* par un fichier (restauration uniquement).
+
+Avant chaque chargement, l'application affiche un **message de prévention** pour éviter de charger un fichier au mauvais endroit. Le bouton **« i »** en haut ouvre l'aide, et le **journal des modifications** est accessible en bas des Réglages.
+
+---
+
+## 7. Sauvegarde des données
 
 Les données restent sur chaque appareil. Depuis **Réglages → Sauvegarde**, exportez un fichier `.json` régulièrement (surtout sur iOS, où le navigateur peut effacer les données en cas de manque de place). Le même fichier permet de tout réimporter, ou de transférer le suivi d'un appareil à un autre.
 
@@ -105,5 +123,7 @@ sw.js                    Service worker (fonctionnement hors-ligne)
 data/produits.json       Base produits CIP -> nom (~13 500 réf. en stock, Smart Rx)
 vendor/zxing.min.js      Lecteur caméra ZXing (auto-hébergé, iOS + Android)
 vendor/LISEZMOI.txt      Note sur le lecteur ZXing / mise à jour
+affiche/affiche-perimes.pdf  Affiche imprimable (usage téléphone + PC, QR d'installation)
+affiche/qr-installation.jpg  QR code d'installation
 icons/                   Icônes de l'application
 ```

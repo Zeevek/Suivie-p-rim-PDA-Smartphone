@@ -147,6 +147,32 @@
   small.note{display:block;color:var(--gris);font-size:12.5px;margin-top:6px;line-height:1.45}
 
   @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+  /* Bouton d'aide (i) dans l'en-tête */
+  .aide-i{
+    position:absolute; top:calc(12px + env(safe-area-inset-top)); right:14px;
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(255,255,255,.18); color:#fff; font-weight:800; font-style:italic;
+    font-size:18px; border:1.6px solid rgba(255,255,255,.7);
+    display:flex; align-items:center; justify-content:center; padding:0; line-height:1;
+  }
+  .aide-i:active{background:rgba(255,255,255,.32)}
+
+  /* Contenu de modale (aide, changelog) */
+  .modale-contenu{font-size:15px; line-height:1.55; color:var(--texte)}
+  .modale-contenu h3{font-size:15px; margin:15px 0 5px; color:var(--vert-fonce)}
+  .modale-contenu ul{margin:6px 0; padding-left:20px}
+  .modale-contenu li{margin:5px 0}
+  .modale-contenu p{margin:8px 0}
+  .etape{display:flex; gap:10px; margin:9px 0}
+  .etape .num{flex:0 0 24px; height:24px; border-radius:50%; background:var(--vert); color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center}
+
+  /* Encadré d'avertissement avant chargement de fichier */
+  .avert{font-size:15px; line-height:1.5; background:var(--vert-clair); border:1px solid #A9D3BE; border-radius:12px; padding:12px 14px}
+  .avert-danger{background:var(--rouge-bg); border-color:#E7B3AD; color:var(--rouge)}
+  .avert b{font-weight:700}
+  .chlog-v{font-weight:800; color:var(--vert-fonce); margin-top:12px}
+  .chlog-d{font-size:12.5px; color:var(--gris); font-weight:600}
 </style>
 </head>
 <body>
@@ -160,6 +186,7 @@
     </div>
   </div>
   <div id="dateJour"></div>
+  <button id="btnAide" class="aide-i" aria-label="Aide et informations">i</button>
 </header>
 
 <main id="main"></main>
@@ -322,7 +349,7 @@ async function ajouterEntree(code,nom,emplacement,lot,iso,jour,qte){
     memes.qte=(memes.qte||1)+(qte||1); memes.nom=nom||memes.nom;
     await put('entrees',memes); return memes;
   }
-  const e={code,nom:nom||'(sans nom)',lot:lot||'',exp:iso,jour:jour||0,qte:qte||1,ajout:Date.now(),traite:false};
+  const e={uuid:uid(),code,nom:nom||'(sans nom)',lot:lot||'',exp:iso,jour:jour||0,qte:qte||1,ajout:Date.now(),traite:false};
   const id=await put('entrees',e); e.id=id; return e;
 }
 
@@ -334,6 +361,7 @@ let vueActive='alertes';
 document.querySelectorAll('nav button').forEach(b=>{
   b.addEventListener('click',()=>allerA(b.dataset.vue));
 });
+document.getElementById('btnAide').addEventListener('click',ouvrirAide);
 function allerA(v){
   vueActive=v;
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('actif',b.dataset.vue===v));
@@ -734,19 +762,26 @@ async function vueReglages(){
       <small class="note">La base intégrée couvre déjà tout le catalogue. Cet import sert à <b>ajouter ou corriger</b> des produits (CSV ou JSON avec au moins le code CIP et le nom). Les colonnes sont repérées automatiquement.</small>
     </div></div>
 
-    <div class="carte"><div class="carte-tete">Sauvegarde</div><div class="carte-corps">
-      <button class="btn-principal" id="rExport" style="margin-bottom:10px">💾 Exporter une sauvegarde (.json)</button>
-      <button class="btn-second" id="rImport">📥 Importer une sauvegarde</button>
+    <div class="carte"><div class="carte-tete">Fichier mère / Sauvegarde</div><div class="carte-corps">
+      <button class="btn-principal" id="rExport" style="margin-bottom:10px">💾 Exporter (créer un fichier .json)</button>
+      <button class="btn-second" id="rFusion" style="margin-bottom:10px">➕ Fusionner un fichier (ajouter sans effacer)</button>
+      <input type="file" id="rFusionFichier" accept="application/json,.json" class="cache">
+      <button class="btn-ligne btn-danger" id="rImport" style="width:100%;justify-content:center">♻️ Remplacer tout par un fichier</button>
       <input type="file" id="rFichier" accept="application/json,.json" class="cache">
-      <small class="note">Exportez régulièrement : les données restent uniquement sur ce PDA. Le fichier réimporte tout (produits + suivi).</small>
+      <small class="note"><b>Exporter</b> = créer le fichier. <b>Fusionner</b> = ajouter les scans d'un téléphone au fichier mère (rien n'est effacé). <b>Remplacer</b> = tout écraser (restauration). En cas de doute, touchez le bouton <b>« i »</b> en haut.</small>
     </div></div>
 
     <div class="carte"><div class="carte-tete">Entretien</div><div class="carte-corps">
       <button class="btn-second" id="rVoirTraites">Voir les produits retirés</button>
       <div style="height:10px"></div>
+      <button class="btn-second" id="rViderSuivi" style="width:100%">🧹 Vider le suivi de cet appareil (après export)</button>
+      <div style="height:10px"></div>
       <button class="btn-ligne btn-danger" id="rReset" style="width:100%;justify-content:center">Tout effacer</button>
     </div></div>
 
+    <div style="text-align:center;margin-top:4px">
+      <button class="btn-mini" id="rChangelog">Version ${APP_VERSION} · journal des modifications</button>
+    </div>
     <small class="note" style="text-align:center">Appli 100% hors-ligne · aucune donnée envoyée · Android · iOS · Honeywell EDA51</small>
   `;
 
@@ -790,15 +825,39 @@ async function vueReglages(){
   });
 
   document.getElementById('rExport').addEventListener('click',exporter);
-  document.getElementById('rImport').addEventListener('click',()=>document.getElementById('rFichier').click());
+
+  document.getElementById('rFusion').addEventListener('click',()=>{
+    avantChargement({
+      titre:'Fusionner un fichier',
+      ok:'Choisir le fichier à fusionner',
+      html:'Vous allez <b>ajouter</b> le contenu d\'un fichier de suivi aux données <b>actuelles</b> — rien ne sera effacé, les doublons sont ignorés.<br><br>➡️ Choisissez un fichier <b>exporté par l\'application</b> (un téléphone, ou une sauvegarde du fichier mère).<br><br>⚠️ Ce n\'est <u>pas</u> ici qu\'on charge une liste produits (catalogue).'
+    }, ()=>document.getElementById('rFusionFichier').click());
+  });
+  document.getElementById('rFusionFichier').addEventListener('change',gererFusion);
+
+  document.getElementById('rImport').addEventListener('click',()=>{
+    avantChargement({
+      titre:'Remplacer toutes les données',
+      danger:true, ok:'J\'ai compris, choisir le fichier',
+      html:'⚠️ <b>Attention :</b> cette action va <b>effacer toutes les données actuelles</b> (suivi + produits ajoutés) et les remplacer par le fichier choisi.<br><br>À utiliser uniquement pour <b>restaurer</b> une sauvegarde. Pour simplement ajouter des scans, utilisez plutôt <b>Fusionner</b>.'
+    }, ()=>document.getElementById('rFichier').click());
+  });
   document.getElementById('rFichier').addEventListener('change',importer);
+
+  document.getElementById('rChangelog').addEventListener('click',ouvrirChangelog);
 
   // Catalogue produits
   const catInfo=document.getElementById('rCatInfo');
   const nbProd=(await tout('produits')).length;
   const base=BASE_COUNT?('Base intégrée : <b>'+BASE_COUNT.toLocaleString('fr-FR')+'</b> produits.'):'Base intégrée en cours de chargement…';
   catInfo.innerHTML = base + (nbProd?(' <br>Ajouts / corrections locales : <b>'+nbProd+'</b>.'):'');
-  document.getElementById('rCatImport').onclick=()=>document.getElementById('rCatFichier').click();
+  document.getElementById('rCatImport').onclick=()=>{
+    avantChargement({
+      titre:'Importer un fichier produits',
+      ok:'Choisir le fichier produits',
+      html:'Vous allez charger une <b>liste de produits</b> (colonnes <b>code CIP</b> + <b>nom</b>) qui complète le catalogue des noms.<br><br>⚠️ Ce n\'est <u>pas</u> ici qu\'on charge une sauvegarde de <b>suivi</b> (pour ça, utilisez <b>Fusionner</b>).'
+    }, ()=>document.getElementById('rCatFichier').click());
+  };
   document.getElementById('rCatFichier').onchange=async(ev)=>{
     const f=ev.target.files[0]; ev.target.value=''; if(!f)return;
     catInfo.textContent='Import en cours…';
@@ -812,6 +871,20 @@ async function vueReglages(){
     rendre();
   };
   document.getElementById('rVoirTraites').addEventListener('click',voirTraites);
+  document.getElementById('rViderSuivi').addEventListener('click',async()=>{
+    const n=(await tout('entrees')).length;
+    if(n===0){ toast('Aucun suivi à vider'); return; }
+    ouvrirModale({titre:'Vider le suivi de cet appareil', html:
+      `<div class="avert avert-danger">Cette action efface les <b>${n}</b> entrée(s) de suivi de <b>cet appareil</b> (les boîtes scannées).<br><br>✅ Le catalogue produits et les réglages sont <b>conservés</b>.<br><br>⚠️ À faire <b>seulement après avoir exporté</b> ce fichier et l'avoir fusionné sur le PC — sinon les scans seront perdus.</div>
+      <p style="font-size:13px;color:var(--gris)">Astuce : exportez d'abord (bouton Exporter ci-dessus), puis videz.</p>`,
+      actions:[
+        {label:'Annuler',classe:'btn-second'},
+        {label:'J\'ai exporté, vider',classe:'btn-danger',onClick:()=>{
+          if(!confirm('Confirmer : effacer le suivi de cet appareil ?')) return false;
+          (async()=>{ await new Promise(r=>{const t=db.transaction('entrees','readwrite');t.objectStore('entrees').clear();t.oncomplete=r;}); toast('Suivi vidé'); rendre(); })();
+        }}
+      ]});
+  });
   document.getElementById('rReset').addEventListener('click',async()=>{
     if(confirm('Effacer TOUTES les données (produits + suivi) ? Action irréversible.')){
       if(confirm('Confirmez-vous vraiment la suppression totale ?')){
@@ -846,30 +919,237 @@ async function voirTraites(){
 }
 
 async function exporter(){
-  const data={version:1,date:new Date().toISOString(),reglages:REGLAGES,
-    produits:await tout('produits'),entrees:await tout('entrees')};
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const entrees=await tout('entrees');
+  for(const e of entrees){ if(!e.uuid){ e.uuid=uid(); await put('entrees',e); } } // identifiants stables
+  const data={app:'perimes-gestion', version:2, date:new Date().toISOString(),
+    reglages:REGLAGES, produits:await tout('produits'), entrees};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');
-  a.href=url;a.download='perimes-sauvegarde-'+new Date().toISOString().slice(0,10)+'.json';
+  const nom='perimes-'+(REGLAGES.pharma||'').replace(/[^a-z0-9]+/gi,'-').toLowerCase().replace(/^-+|-+$/g,'')+'-'+new Date().toISOString().slice(0,10)+'.json';
+  a.href=url;a.download=nom.replace('--','-');
   document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
-  toast('Sauvegarde exportée');
+  toast('Fichier exporté');
 }
+
+/* FUSION : ajoute le contenu d'un fichier aux données actuelles, sans rien effacer.
+   - Les événements déjà fusionnés (même identifiant) sont ignorés automatiquement.
+   - Les entrées de même CIP + même péremption qu'une entrée existante sont signalées
+     comme doublons : l'utilisateur choisit fusionner / remplacer / ignorer. */
+const keyDoublon=(code,exp)=>normCip(code)+'|'+(exp||'');
+
+async function analyserFusion(data){
+  const inc=(data.entrees||data.entries||[]).slice();
+  const existAll=await tout('entrees');
+  const connus=new Set();
+  existAll.forEach(e=>{ if(e.uuid)connus.add(e.uuid); (e.srcs||[]).forEach(s=>connus.add(s)); });
+  let dejaConnus=0;
+  const restants=[];
+  for(const it of inc){ if(it.uuid && connus.has(it.uuid)) dejaConnus++; else restants.push(it); }
+  // consolider les restants par CIP+péremption
+  const cons=new Map();
+  for(const it of restants){
+    const k=keyDoublon(it.code,it.exp);
+    if(cons.has(k)){ const o=cons.get(k); o.qte+=(it.qte||1); if(!o.lot&&it.lot)o.lot=it.lot; o._uuids.push(it.uuid||uid()); }
+    else cons.set(k,{code:normCip(it.code),nom:it.nom||'(sans nom)',lot:it.lot||'',exp:it.exp,jour:it.jour||0,qte:it.qte||1,_uuids:[it.uuid||uid()]});
+  }
+  // comparer aux entrées ACTIVES existantes
+  const actifs=new Map();
+  for(const e of existAll){ if(e.traite)continue; const k=keyDoublon(e.code,e.exp); if(!actifs.has(k))actifs.set(k,e); }
+  const nouveaux=[], conflits=[];
+  for(const [k,it] of cons){
+    if(actifs.has(k)) conflits.push({key:k, inc:it, exist:actifs.get(k)});
+    else nouveaux.push(it);
+  }
+  return {dejaConnus, nouveaux, conflits, produits:data.produits||[]};
+}
+
+function entreeDepuis(it){
+  return {uuid:uid(), code:it.code, nom:it.nom||'(sans nom)', lot:it.lot||'', exp:it.exp,
+    jour:it.jour||0, qte:it.qte||1, ajout:Date.now(), traite:false, srcs:(it._uuids||[]).slice()};
+}
+
+async function appliquerFusion(analyse, decisions){
+  let add=0, fus=0, rem=0, ign=0;
+  for(const it of analyse.nouveaux){ await put('entrees', entreeDepuis(it)); add++; }
+  for(const c of analyse.conflits){
+    const d=decisions[c.key]||'fusionner';
+    const e=c.exist;
+    if(d==='fusionner'){ e.qte=(e.qte||1)+(c.inc.qte||1); e.srcs=(e.srcs||[]).concat(c.inc._uuids||[]); await put('entrees',e); fus++; }
+    else if(d==='remplacer'){ e.qte=c.inc.qte||1; e.lot=c.inc.lot||''; e.nom=c.inc.nom||e.nom; e.exp=c.inc.exp; e.jour=c.inc.jour||0; e.ajout=Date.now(); e.srcs=(e.srcs||[]).concat(c.inc._uuids||[]); await put('entrees',e); rem++; }
+    else { ign++; }
+  }
+  // catalogue produits
+  let addP=0;
+  for(const p of (analyse.produits||[])){
+    if(!p.code)continue;
+    const ex=await get('produits',p.code);
+    if(ex){ const nom=(ex.nom&&ex.nom!=='(sans nom)')?ex.nom:(p.nom||ex.nom); await put('produits',{code:p.code,nom,emplacement:ex.emplacement||p.emplacement||'',maj:Date.now()}); }
+    else { await put('produits',{code:p.code,nom:p.nom||'(sans nom)',emplacement:p.emplacement||'',maj:Date.now()}); addP++; }
+  }
+  return {add,fus,rem,ign,addP,dejaConnus:analyse.dejaConnus};
+}
+
+async function gererFusion(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  let data;
+  try{ data=JSON.parse(await f.text()); if(!data.entrees && !data.produits && !data.entries) throw 0; }
+  catch(_){ alert('Fichier non reconnu. Choisissez un fichier exporté par l\'application (.json).'); return; }
+  const analyse=await analyserFusion(data);
+  if(analyse.conflits.length===0){
+    // pas de doublon -> confirmation simple
+    ouvrirModale({titre:'Confirmer la fusion', html:
+      `<div class="avert"><b>${analyse.nouveaux.length}</b> nouvelle(s) entrée(s) seront ajoutées.`+
+      (analyse.dejaConnus?`<br>${analyse.dejaConnus} déjà présente(s), ignorée(s).`:'')+
+      `<br>Aucun doublon détecté.</div>`,
+      actions:[{label:'Annuler',classe:'btn-second'},
+        {label:'Fusionner',classe:'btn-principal',onClick:()=>{ finaliserFusion(analyse,{}); }}]});
+  }else{
+    ouvrirInterfaceDoublons(analyse);
+  }
+}
+
+async function finaliserFusion(analyse, decisions){
+  const r=await appliquerFusion(analyse, decisions);
+  ouvrirModale({titre:'Fusion terminée', html:
+    `<div class="avert">➕ <b>${r.add}</b> ajoutée(s)<br>🔗 <b>${r.fus}</b> fusionnée(s) (quantités additionnées)<br>♻️ <b>${r.rem}</b> remplacée(s)<br>⏭️ <b>${r.ign}</b> ignorée(s)`+
+    (r.dejaConnus?`<br>✔️ ${r.dejaConnus} déjà présente(s)`:'')+
+    (r.addP?`<br>🏷️ ${r.addP} produit(s) ajouté(s) au catalogue`:'')+`</div>`,
+    actions:[{label:'OK',classe:'btn-principal'}]});
+  rendre();
+}
+
+function ouvrirInterfaceDoublons(analyse){
+  const c=analyse.conflits;
+  const lignes=c.map((x,i)=>{
+    const st=statut(x.exist.exp);
+    return `<div style="border:1px solid var(--bord);border-radius:10px;padding:10px;margin:8px 0">
+      <div class="prod-nom" style="font-size:15px">${echap(x.inc.nom||x.exist.nom)}</div>
+      <div class="prod-meta">Périme <b>${libelleMois(x.exist.exp)}</b> · CIP ${echap(x.exist.code)}</div>
+      <div class="prod-meta" style="margin:4px 0">Actuel : <b>qté ${x.exist.qte||1}</b>${x.exist.lot?' · lot '+echap(x.exist.lot):''} &nbsp;|&nbsp; Fichier : <b>qté ${x.inc.qte||1}</b>${x.inc.lot?' · lot '+echap(x.inc.lot):''}</div>
+      <select data-k="${echap(x.key)}" style="margin-top:4px">
+        <option value="fusionner">Fusionner (additionner les quantités)</option>
+        <option value="remplacer">Remplacer par le fichier</option>
+        <option value="ignorer">Ignorer (garder l'actuel)</option>
+      </select>
+    </div>`;
+  }).join('');
+  const html=`
+    <p>${c.length} entrée(s) ont le <b>même CIP et la même péremption</b> qu'une entrée déjà présente. Choisissez pour chacune :</p>
+    <div class="avert" style="margin-bottom:8px">Appliquer à toutes :
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn-mini" data-tous="fusionner" style="flex:1">Tout fusionner</button>
+        <button class="btn-mini" data-tous="remplacer" style="flex:1">Tout remplacer</button>
+        <button class="btn-mini" data-tous="ignorer" style="flex:1">Tout ignorer</button>
+      </div>
+    </div>
+    ${analyse.nouveaux.length?`<p style="color:var(--gris);font-size:13px">${analyse.nouveaux.length} autre(s) entrée(s) sans doublon seront ajoutées.</p>`:''}
+    <div>${lignes}</div>`;
+  const voile=ouvrirModale({titre:'Doublons détectés', html, actions:[
+    {label:'Annuler',classe:'btn-second'},
+    {label:'Confirmer',classe:'btn-principal',onClick:()=>{
+      const dec={}; voile.querySelectorAll('select[data-k]').forEach(s=>dec[s.getAttribute('data-k')]=s.value);
+      setTimeout(()=>finaliserFusion(analyse,dec),30);
+    }}
+  ]});
+  voile.querySelectorAll('[data-tous]').forEach(b=>b.onclick=()=>{
+    const v=b.getAttribute('data-tous');
+    voile.querySelectorAll('select[data-k]').forEach(s=>s.value=v);
+  });
+}
+
 async function importer(e){
-  const f=e.target.files[0];if(!f)return;
+  const f=e.target.files[0];if(!f){return;}
   try{
     const data=JSON.parse(await f.text());
-    if(!data.entrees&&!data.produits)throw 0;
-    if(!confirm('Importer cette sauvegarde ? Elle remplace les données actuelles.'))return;
+    if(!data.entrees&&!data.produits&&!data.entries)throw 0;
+    if(!confirm('DERNIER AVERTISSEMENT : remplacer TOUT le contenu actuel par ce fichier ? Les données présentes seront définitivement effacées.'))return;
     await new Promise(r=>{const t=db.transaction(['entrees','produits'],'readwrite');t.objectStore('entrees').clear();t.objectStore('produits').clear();t.oncomplete=r;});
     for(const p of (data.produits||[]))await put('produits',p);
-    for(const en of (data.entrees||[])){delete en.id;await put('entrees',en);}
+    for(const en of (data.entrees||data.entries||[])){delete en.id; if(!en.uuid)en.uuid=uid(); await put('entrees',en);}
     if(data.reglages){REGLAGES={...REGLAGES,...data.reglages};await sauverReglages();}
-    toast('Sauvegarde importée');rendre();
+    toast('Données remplacées');rendre();
   }catch(_){alert("Fichier invalide.");}
   e.target.value='';
 }
 
 /* ---------- Utilitaires ---------- */
+const APP_VERSION='1.1';
+const CHANGELOG=[
+  {v:'1.1', d:'17/07/2026', items:[
+    'Gestion des doublons à la fusion : quand une entrée a le même CIP et la même péremption qu\'une entrée existante, on choisit fusionner / remplacer / ignorer (avec confirmation).',
+    'Nouveau bouton « Vider le suivi de cet appareil (après export) » pour repartir propre sur un téléphone une fois les données envoyées au PC.',
+    'Affiche d\'utilisation imprimable (téléphone + PC référent) avec QR code d\'installation.'
+  ]},
+  {v:'1.0', d:'17/07/2026', items:[
+    'Fusion de fichiers : incrémenter le « fichier mère » avec les scans de plusieurs téléphones, sans rien effacer.',
+    'Message de prévention avant chaque chargement de fichier.',
+    'Bouton d\'aide (i) et journal des modifications.',
+    'Base produits « en stock » (Smart Rx) intégrée.',
+    'Scan par appareil photo sur Android et iOS (Datamatrix + codes-barres), lecteur embarqué.',
+    'Application installable (PWA), fonctionne hors-ligne.'
+  ]}
+];
+function uid(){ return 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,9); }
+
+/* Modale générique. actions:[{label,classe,onClick}] ; onClick renvoyant false empêche la fermeture. */
+function ouvrirModale({titre, html, actions}){
+  const voile=document.createElement('div'); voile.className='voile';
+  const acts=actions||[{label:'Fermer'}];
+  const boutons=acts.map((a,i)=>`<button class="${a.classe||'btn-second'}" data-i="${i}" style="flex:1">${echap(a.label)}</button>`).join('');
+  voile.innerHTML=`<div class="modale"><h2>${echap(titre)}</h2>
+    <div class="modale-contenu">${html}</div>
+    <div style="display:flex;gap:10px;margin-top:16px">${boutons}</div></div>`;
+  document.body.appendChild(voile);
+  voile.addEventListener('click',e=>{if(e.target===voile)voile.remove();});
+  acts.forEach((a,i)=>{ const b=voile.querySelector('[data-i="'+i+'"]');
+    if(b) b.onclick=()=>{ if(a.onClick && a.onClick()===false) return; voile.remove(); }; });
+  return voile;
+}
+
+/* Prévention avant d'ouvrir un sélecteur de fichier. `apres` déclenche le choix du fichier. */
+function avantChargement(opts, apres){
+  ouvrirModale({
+    titre: opts.titre,
+    html: `<div class="avert ${opts.danger?'avert-danger':''}">${opts.html}</div>`,
+    actions:[
+      {label:'Annuler', classe:'btn-second'},
+      {label: opts.ok||'Choisir le fichier', classe: opts.danger?'btn-danger':'btn-principal', onClick:()=>{ apres(); }}
+    ]
+  });
+}
+
+function ouvrirAide(){
+  ouvrirModale({titre:'Aide — comment ça marche', html:`
+    <p><b>Un PC central + des téléphones qui scannent.</b> Le PC détient le « fichier mère » (toutes les données). Chaque téléphone scanne de son côté, puis envoie son fichier au PC, qui le <b>fusionne</b> dans le fichier mère.</p>
+    <h3>Au quotidien, sur un téléphone</h3>
+    <div class="etape"><span class="num">1</span><div>Onglet <b>Scanner</b> : scannez le Datamatrix des boîtes (gâchette du PDA, ou appareil photo). Le nom se remplit tout seul.</div></div>
+    <div class="etape"><span class="num">2</span><div>En fin de session : <b>Réglages → Exporter</b> pour obtenir un fichier <code>.json</code>, à envoyer au PC (mail, câble, cloud…).</div></div>
+    <div class="etape"><span class="num">3</span><div>Une fois le fichier envoyé et fusionné sur le PC : <b>Réglages → Vider le suivi de cet appareil</b>, pour repartir propre et ne pas renvoyer deux fois les mêmes scans.</div></div>
+    <h3>Sur le PC (fichier mère)</h3>
+    <div class="etape"><span class="num">4</span><div><b>Réglages → Fusionner</b> : ajoutez le fichier reçu d'un téléphone. Rien n'est effacé.</div></div>
+    <div class="etape"><span class="num">5</span><div>Si des <b>doublons</b> sont détectés (même CIP + même péremption), choisissez pour chacun : <b>fusionner</b> (additionner), <b>remplacer</b> ou <b>ignorer</b>, puis confirmez.</div></div>
+    <div class="etape"><span class="num">6</span><div><b>Réglages → Exporter</b> pour enregistrer la nouvelle version du fichier mère (gardez une copie datée).</div></div>
+    <h3>Les trois boutons de fichiers</h3>
+    <ul>
+      <li><b>Exporter</b> : crée un fichier de vos données (pour sauvegarde ou envoi).</li>
+      <li><b>Fusionner</b> : <b>ajoute</b> un fichier aux données actuelles (sans effacer). C'est ce qui construit le fichier mère.</li>
+      <li><b>Remplacer</b> : <b>écrase tout</b> par un fichier. À réserver à une restauration.</li>
+      <li><b>Catalogue produits</b> : charge une liste CIP → nom (n'affecte pas votre suivi).</li>
+    </ul>
+    <h3>Alertes</h3>
+    <p>L'onglet <b>Alertes</b> regroupe les produits qui périment, avec un compte à rebours en mois. Réglez le délai d'alerte dans <b>Réglages</b>.</p>
+    <p style="color:var(--gris);font-size:13px">Application 100 % hors-ligne — les données restent sur l'appareil. Pensez à exporter régulièrement.</p>
+  `, actions:[
+    {label:'Journal des modifications', classe:'btn-second', onClick:()=>{ setTimeout(ouvrirChangelog,50); }},
+    {label:'Fermer', classe:'btn-principal'}
+  ]});
+}
+
+function ouvrirChangelog(){
+  const html=CHANGELOG.map(c=>`<div class="chlog-v">Version ${echap(c.v)} <span class="chlog-d">— ${echap(c.d)}</span></div>
+    <ul>${c.items.map(i=>`<li>${echap(i)}</li>`).join('')}</ul>`).join('');
+  ouvrirModale({titre:'Journal des modifications', html, actions:[{label:'Fermer',classe:'btn-principal'}]});
+}
 function normCip(s){
   let d=String(s==null?'':s).replace(/\D/g,'');
   if(d.length===14 && d[0]==='0') d=d.slice(1); // GTIN14 -> CIP13
