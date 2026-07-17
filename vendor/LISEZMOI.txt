@@ -1,1 +1,28 @@
+LECTEUR CAMÉRA AUTO-HÉBERGÉ (facultatif)
+========================================
 
+L'application peut lire le Datamatrix par appareil photo sur iOS et Android
+grâce à la librairie open-source ZXing.
+
+Par défaut, ZXing est chargée depuis un CDN (puis mise en cache pour
+fonctionner hors-ligne). Si vous préférez ne dépendre d'AUCUN service externe,
+placez la librairie dans ce dossier :
+
+1. Ouvrez ce lien dans un navigateur (sur ordinateur) :
+   https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js
+   (miroir : https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js)
+
+2. Enregistrez la page (Ctrl+S / Cmd+S, ou clic droit « Enregistrer sous »).
+
+3. Renommez le fichier obtenu en :  zxing.min.js
+
+4. Placez-le dans ce dossier « vendor/ » du dépôt (à côté de ce fichier),
+   puis poussez sur GitHub.
+
+L'application utilisera alors ce fichier local en priorité, sans jamais
+contacter le CDN. Aucune autre modification n'est nécessaire.
+
+Pour forcer la prise en compte sur les appareils déjà installés, incrémentez
+aussi la version du cache dans sw.js (const CACHE = 'perimes-vX').
+
+Version testée : @zxing/library 0.19.1 (fichier umd/index.min.js).
