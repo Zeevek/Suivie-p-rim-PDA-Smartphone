@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B6B47">
+<title>Gestion des périmés — Pharmacie des 4 Routes</title>
+
+<!-- PWA -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/favicon-64.png" sizes="64x64" type="image/png">
+<!-- iOS : installation via « Sur l'écran d'accueil » -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Périmés">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<style>
+  :root{
+    --vert:#0B6B47; --vert-fonce:#084E34; --vert-clair:#E7F3EC;
+    --rouge:#C0362C; --rouge-bg:#FBEAE8;
+    --orange:#C9700F; --orange-bg:#FCF1E2;
+    --jaune:#8A6D00; --jaune-bg:#FBF6E0;
+    --ok:#0B6B47; --ok-bg:#E7F3EC;
+    --gris:#5B6672; --gris-clair:#EDF0F2; --bord:#DCE2E6;
+    --texte:#1A2228; --fond:#F5F7F8; --blanc:#FFFFFF;
+    --ombre:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+    --r:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI",system-ui,sans-serif;
+    background:var(--fond); color:var(--texte);
+    font-size:17px; line-height:1.4; overscroll-behavior:none;
+  }
+  .cache{display:none!important}
+
+  /* En-tête */
+  header{
+    background:var(--vert); color:#fff;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 12px;
+    position:sticky; top:0; z-index:20; box-shadow:var(--ombre);
+  }
+  header .titre{display:flex;align-items:center;gap:10px}
+  header .croix{
+    width:26px;height:26px;flex:0 0 26px;border-radius:6px;background:#fff;
+    position:relative;
+  }
+  header .croix::before,header .croix::after{
+    content:"";position:absolute;background:var(--vert);border-radius:2px;
+  }
+  header .croix::before{left:10px;top:4px;width:6px;height:18px}
+  header .croix::after{top:10px;left:4px;height:6px;width:18px}
+  header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px}
+  header .sous{font-size:12.5px;opacity:.85;margin-top:1px;font-weight:400}
+  #dateJour{font-size:12.5px;opacity:.9;font-weight:600;margin-top:6px}
+
+  main{padding:14px 14px 92px;max-width:640px;margin:0 auto}
+
+  /* Cartes */
+  .carte{background:var(--blanc);border:1px solid var(--bord);border-radius:var(--r);box-shadow:var(--ombre);margin-bottom:12px;overflow:hidden}
+  .carte-tete{padding:11px 14px;font-weight:700;font-size:14px;letter-spacing:.3px;text-transform:uppercase;color:var(--gris);border-bottom:1px solid var(--bord);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .carte-corps{padding:12px 14px}
+
+  /* Boutons */
+  button{font-family:inherit;font-size:17px;cursor:pointer;border:none;border-radius:12px;padding:14px 16px;font-weight:600;transition:filter .12s}
+  button:active{filter:brightness(.93)}
+  button:focus-visible{outline:3px solid #7FB79E;outline-offset:2px}
+  .btn-principal{background:var(--vert);color:#fff;width:100%}
+  .btn-second{background:var(--gris-clair);color:var(--texte);width:100%}
+  .btn-ligne{display:inline-flex;align-items:center;gap:6px;padding:9px 12px;font-size:15px;border-radius:10px}
+  .btn-danger{background:var(--rouge-bg);color:var(--rouge)}
+  .btn-mini{background:var(--gris-clair);color:var(--gris);padding:7px 11px;font-size:14px;border-radius:9px}
+
+  /* Champs */
+  label{display:block;font-size:13px;font-weight:600;color:var(--gris);margin:10px 0 5px}
+  input,select{
+    font-family:inherit;font-size:18px;width:100%;padding:13px 12px;
+    border:1.5px solid var(--bord);border-radius:11px;background:#fff;color:var(--texte);
+  }
+  input:focus,select:focus{outline:none;border-color:var(--vert)}
+  .rang{display:flex;gap:10px}
+  .rang>*{flex:1}
+
+  /* Zone de scan */
+  #champScan{
+    font-size:20px;font-weight:600;text-align:center;border:2.5px dashed var(--vert);
+    background:var(--vert-clair);letter-spacing:.5px;
+  }
+  .aide-scan{font-size:13.5px;color:var(--gris);text-align:center;margin-top:9px;line-height:1.45}
+
+  /* Puce compte à rebours (élément signature) */
+  .cible{display:flex;align-items:center;gap:12px}
+  .compteur{
+    flex:0 0 78px;width:78px;height:78px;border-radius:16px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;line-height:1;font-variant-numeric:tabular-nums;
+  }
+  .compteur .n{font-size:30px;font-weight:800}
+  .compteur .u{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;opacity:.9}
+  .c-perime{background:var(--rouge);color:#fff}
+  .c-ce-mois{background:var(--rouge-bg);color:var(--rouge);border:2px solid var(--rouge)}
+  .c-proche{background:var(--orange-bg);color:var(--orange);border:2px solid #E7B579}
+  .c-moyen{background:var(--jaune-bg);color:var(--jaune);border:2px solid #E4D48A}
+  .c-ok{background:var(--ok-bg);color:var(--ok);border:2px solid #A9D3BE}
+
+  .prod-nom{font-weight:700;font-size:17px}
+  .prod-meta{font-size:13.5px;color:var(--gris);margin-top:2px}
+  .prod-meta b{color:var(--texte);font-weight:600}
+  .ligne-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+  .vide{text-align:center;color:var(--gris);padding:26px 12px;font-size:15px}
+  .vide .grand{font-size:34px;margin-bottom:8px}
+
+  .groupe-titre{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin:16px 2px 8px;display:flex;align-items:center;gap:8px}
+  .pastille{display:inline-block;min-width:24px;text-align:center;padding:1px 7px;border-radius:20px;font-size:12.5px;font-weight:800}
+  .p-perime{background:var(--rouge);color:#fff}
+  .p-ce-mois{background:var(--rouge-bg);color:var(--rouge)}
+  .p-proche{background:var(--orange-bg);color:var(--orange)}
+
+  /* Barre de navigation */
+  nav{
+    position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--bord);
+    display:flex;z-index:30;box-shadow:0 -1px 4px rgba(0,0,0,.05);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav button{flex:1;background:none;border:none;border-radius:0;padding:9px 2px 8px;color:var(--gris);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav button .ic{font-size:22px;line-height:1}
+  nav button.actif{color:var(--vert)}
+  nav button.actif .ic{transform:scale(1.05)}
+  nav .badge{position:absolute;top:5px;margin-left:20px;background:var(--rouge);color:#fff;font-size:10px;font-weight:800;min-width:17px;height:17px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+  nav button{position:relative}
+
+  /* Modale */
+  .voile{position:fixed;inset:0;background:rgba(15,25,20,.5);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+  .modale{background:#fff;width:100%;max-width:640px;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+  .modale h2{margin:0 0 4px;font-size:19px}
+  .modale .info-code{font-size:13px;color:var(--gris);margin-bottom:6px;word-break:break-all}
+  .badge-src{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--vert-clair);color:var(--vert);margin-bottom:10px}
+  .badge-src.manuel{background:var(--jaune-bg);color:var(--jaune)}
+
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;background:var(--vert-fonce);color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;font-weight:600;z-index:60;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:90%;text-align:center}
+
+  #cam{width:100%;border-radius:12px;background:#000;display:block}
+  .filtre-rang{display:flex;gap:8px;margin-bottom:10px}
+  .filtre-rang input{flex:1}
+  small.note{display:block;color:var(--gris);font-size:12.5px;margin-top:6px;line-height:1.45}
+
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="titre">
+    <span class="croix"></span>
+    <div>
+      <h1 id="titrePharma">Pharmacie des 4 Routes</h1>
+      <div class="sous">Gestion des périmés</div>
+    </div>
+  </div>
+  <div id="dateJour"></div>
+</header>
+
+<main id="main"></main>
+
+<nav>
+  <button data-vue="alertes" class="actif"><span class="ic">🔔</span>Alertes<span id="badgeAlerte" class="badge cache">0</span></button>
+  <button data-vue="scan"><span class="ic">📷</span>Scanner</button>
+  <button data-vue="stock"><span class="ic">📦</span>Stock</button>
+  <button data-vue="produits"><span class="ic">🏷️</span>Produits</button>
+  <button data-vue="reglages"><span class="ic">⚙️</span>Réglages</button>
+</nav>
+
+<script>
+/* =========================================================
+   BASE DE DONNÉES (IndexedDB, 100% hors-ligne)
+   ========================================================= */
+const DB_NOM='perimesDB', DB_VER=1;
+let db=null;
+function ouvrirDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(DB_NOM,DB_VER);
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('entrees')){
+        const s=d.createObjectStore('entrees',{keyPath:'id',autoIncrement:true});
+        s.createIndex('code','code',{unique:false});
+      }
+      if(!d.objectStoreNames.contains('produits')){
+        d.createObjectStore('produits',{keyPath:'code'});
+      }
+      if(!d.objectStoreNames.contains('reglages')){
+        d.createObjectStore('reglages',{keyPath:'cle'});
+      }
+    };
+    r.onsuccess=e=>{db=e.target.result;res();};
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+function tx(store,mode='readonly'){return db.transaction(store,mode).objectStore(store);}
+function pReq(req){return new Promise((res,rej)=>{req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}
+async function tout(store){return pReq(tx(store).getAll());}
+async function get(store,cle){return pReq(tx(store).get(cle));}
+async function put(store,val){return pReq(tx(store,'readwrite').put(val));}
+async function supprimer(store,cle){return pReq(tx(store,'readwrite').delete(cle));}
+
+/* Réglages */
+let REGLAGES={horizon:3, pharma:'Pharmacie des 4 Routes'};
+async function chargerReglages(){
+  const r=await get('reglages','app');
+  if(r&&r.val) REGLAGES={...REGLAGES,...r.val};
+}
+async function sauverReglages(){await put('reglages',{cle:'app',val:REGLAGES});}
+
+/* =========================================================
+   ANALYSE DU CODE SCANNÉ (GS1 / Datamatrix pharma)
+   ========================================================= */
+const GS=String.fromCharCode(29); // séparateur GS1 (FNC1)
+function analyserCode(brut){
+  let s=String(brut).trim();
+  // Retire un identifiant de symbologie type ]d2 ]C1 ]Q3 ]e0
+  s=s.replace(/^\][A-Za-z][0-9]?/,'');
+  // Retire un GS/FNC1 en tête
+  while(s.length && s.charCodeAt(0)===29) s=s.slice(1);
+
+  const res={gtin:null,cip13:null,peremption:null,lot:null,serie:null,gs1:false,brut:brut.trim()};
+  const FIXE={'00':18,'01':14,'02':14,'11':6,'12':6,'13':6,'15':6,'16':6,'17':6,'20':2};
+
+  const ranger=(ai,v)=>{
+    if(ai==='01'||ai==='02'){res.gtin=v;}
+    else if(ai==='17'){res.peremption=v;}
+    else if(ai==='10'){res.lot=v;}
+    else if(ai==='21'){res.serie=v;}
+  };
+  const dateValide=v=>/^\d{6}$/.test(v)&&(+v.slice(2,4)>=1)&&(+v.slice(2,4)<=12);
+
+  if(s.indexOf(GS)>=0){
+    // ---- Chaîne avec séparateurs : analyse fiable ----
+    res.gs1=true;
+    let i=0;
+    while(i<s.length){
+      if(s.charCodeAt(i)===29){i++;continue;}
+      const ai=s.substr(i,2);
+      if(!/^\d{2}$/.test(ai)) break;
+      i+=2;
+      if(FIXE[ai]!=null){
+        const v=s.substr(i,FIXE[ai]); i+=FIXE[ai]; ranger(ai,v);
+      }else{
+        let j=i; while(j<s.length && s.charCodeAt(j)!==29) j++;
+        ranger(ai,s.substring(i,j)); i=j;
+      }
+    }
+  }else{
+    // ---- Pas de séparateur : on extrait l'essentiel par motif ----
+    let m;
+    m=s.match(/01(\d{14})/); if(m){res.gtin=m[1];res.gs1=true;}
+    // péremption : première occurrence "17" + 6 chiffres qui forme une date valide
+    const re=/17(\d{6})/g;
+    while((m=re.exec(s))){ if(dateValide(m[1])){res.peremption=m[1];res.gs1=true;break;} }
+    // lot : "10" jusqu'à un "21"/"17" suivant ou fin (approx.)
+    m=s.match(/10([A-Za-z0-9]{1,20}?)(?=(21\d|17\d{6}|$))/); if(m){res.lot=m[1];}
+    m=s.match(/21([A-Za-z0-9]{1,20})$/); if(m){res.serie=m[1];}
+  }
+
+  // CIP13 = GTIN14 sans le 0 de tête (médicaments FR)
+  if(res.gtin){ res.cip13 = res.gtin.length===14 ? res.gtin.replace(/^0/,'') : res.gtin; }
+  return res;
+}
+
+/* Péremption AAMMJJ -> {aaaa, mm, ym, iso 'AAAA-MM'} ; JJ=00 => fin de mois */
+function lirePeremption(aammjj){
+  if(!/^\d{6}$/.test(aammjj)) return null;
+  const aa=+aammjj.slice(0,2), mm=+aammjj.slice(2,4);
+  const annee=2000+aa;
+  if(mm<1||mm>12) return null;
+  return {annee, mois:mm, ym:annee*12+(mm-1), iso:annee+'-'+String(mm).padStart(2,'0')};
+}
+function ymDepuisIso(iso){ // 'AAAA-MM'
+  const [a,m]=iso.split('-').map(Number); return a*12+(m-1);
+}
+function ymAujourdhui(){const d=new Date();return d.getFullYear()*12+d.getMonth();}
+function libelleMois(iso){
+  const [a,m]=iso.split('-').map(Number);
+  const noms=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  return noms[m-1]+' '+a;
+}
+
+/* Statut selon nombre de mois restants */
+function statut(iso){
+  const reste=ymDepuisIso(iso)-ymAujourdhui();
+  if(reste<0) return {cle:'perime',classe:'c-perime',n:Math.abs(reste),u:reste===-1?'mois':'mois',txt:'Périmé'};
+  if(reste===0) return {cle:'ce-mois',classe:'c-ce-mois',n:0,u:'ce mois',txt:'Ce mois-ci'};
+  let cl='c-ok';
+  if(reste<=3) cl='c-proche'; else if(reste<=6) cl='c-moyen';
+  return {cle:reste<=3?'proche':(reste<=6?'moyen':'ok'),classe:cl,n:reste,u:reste===1?'mois':'mois',txt:'Dans '+reste+' mois'};
+}
+
+/* =========================================================
+   ENTRÉES / PRODUITS
+   ========================================================= */
+async function nomProduit(code){
+  const p=await get('produits',normCip(code));
+  return p?p.nom:null;
+}
+async function ajouterEntree(code,nom,emplacement,lot,iso,jour,qte){
+  code=normCip(code);
+  // Enregistre / met à jour le produit (catalogue)
+  const prodExist=await get('produits',code);
+  await put('produits',{
+    code, nom:nom||(prodExist&&prodExist.nom)||'(sans nom)',
+    emplacement:emplacement!=null?emplacement:(prodExist?prodExist.emplacement:''),
+    maj:Date.now()
+  });
+  // Fusionne si même code+lot+péremption
+  const toutes=await tout('entrees');
+  const memes=toutes.find(e=>e.code===code && (e.lot||'')===(lot||'') && e.exp===iso && !e.traite);
+  if(memes){
+    memes.qte=(memes.qte||1)+(qte||1); memes.nom=nom||memes.nom;
+    await put('entrees',memes); return memes;
+  }
+  const e={code,nom:nom||'(sans nom)',lot:lot||'',exp:iso,jour:jour||0,qte:qte||1,ajout:Date.now(),traite:false};
+  const id=await put('entrees',e); e.id=id; return e;
+}
+
+/* =========================================================
+   NAVIGATION / RENDU
+   ========================================================= */
+const main=document.getElementById('main');
+let vueActive='alertes';
+document.querySelectorAll('nav button').forEach(b=>{
+  b.addEventListener('click',()=>allerA(b.dataset.vue));
+});
+function allerA(v){
+  vueActive=v;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('actif',b.dataset.vue===v));
+  rendre();
+}
+async function rendre(){
+  if(vueActive==='alertes') await vueAlertes();
+  else if(vueActive==='scan') await vueScan();
+  else if(vueActive==='stock') await vueStock();
+  else if(vueActive==='produits') await vueProduits();
+  else if(vueActive==='reglages') await vueReglages();
+  await majBadge();
+}
+
+async function majBadge(){
+  const es=(await tout('entrees')).filter(e=>!e.traite);
+  const now=ymAujourdhui();
+  const n=es.filter(e=>ymDepuisIso(e.exp)-now<=REGLAGES.horizon).length;
+  const b=document.getElementById('badgeAlerte');
+  if(n>0){b.textContent=n;b.classList.remove('cache');}else{b.classList.add('cache');}
+}
+
+/* ---------- VUE ALERTES (tableau de bord) ---------- */
+async function vueAlertes(){
+  const es=(await tout('entrees')).filter(e=>!e.traite);
+  es.sort((a,b)=>ymDepuisIso(a.exp)-ymDepuisIso(b.exp));
+  const now=ymAujourdhui();
+  const aTraiter=es.filter(e=>ymDepuisIso(e.exp)-now<=REGLAGES.horizon);
+
+  let html=`<div class="carte" style="border-color:#A9D3BE">
+    <div class="carte-corps">
+      <div style="font-size:14px;color:var(--gris);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Alerte du mois</div>
+      <div style="font-size:15px;margin-top:6px;line-height:1.5">`;
+  if(es.length===0){
+    html+=`Aucun produit suivi pour l'instant. Va dans <b>Scanner</b> pour commencer.`;
+  }else if(aTraiter.length===0){
+    html+=`✅ Rien à retirer dans les <b>${REGLAGES.horizon} prochains mois</b>. ${es.length} produit(s) suivi(s).`;
+  }else{
+    html+=`<b style="color:var(--rouge);font-size:20px">${aTraiter.length}</b> produit(s) à vérifier / retirer (péremption ≤ ${REGLAGES.horizon} mois).`;
+  }
+  html+=`</div></div></div>`;
+
+  if(aTraiter.length){
+    // Regroupe par statut
+    const groupes=[
+      {cle:'perime',titre:'Périmés — à retirer',pc:'p-perime'},
+      {cle:'ce-mois',titre:'Périment ce mois-ci',pc:'p-ce-mois'},
+      {cle:'proche',titre:'Dans 1 à 3 mois',pc:'p-proche'},
+      {cle:'moyen',titre:'Dans 4 à 6 mois',pc:'p-proche'},
+    ];
+    for(const g of groupes){
+      const lot=aTraiter.filter(e=>statut(e.exp).cle===g.cle);
+      if(!lot.length) continue;
+      html+=`<div class="groupe-titre">${g.titre}<span class="pastille ${g.pc}">${lot.length}</span></div>`;
+      for(const e of lot) html+=carteEntree(e);
+    }
+  }
+  main.innerHTML=html;
+  brancherActionsEntrees();
+}
+
+function carteEntree(e){
+  const st=statut(e.exp);
+  const nAff = st.cle==='perime' ? '-'+st.n : (st.cle==='ce-mois'?'0':st.n);
+  return `<div class="carte"><div class="carte-corps">
+    <div class="cible">
+      <div class="compteur ${st.classe}">
+        <span class="n">${nAff}</span><span class="u">${st.u}</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="prod-nom">${echap(e.nom)}</div>
+        <div class="prod-meta">Périme : <b>${libelleMois(e.exp)}</b>${e.qte>1?` · Qté <b>${e.qte}</b>`:''}</div>
+        <div class="prod-meta">${e.lot?'Lot '+echap(e.lot)+' · ':''}CIP ${echap(e.code)}</div>
+      </div>
+    </div>
+    <div class="ligne-actions">
+      <button class="btn-mini" data-act="qte-plus" data-id="${e.id}">+1</button>
+      <button class="btn-mini" data-act="qte-moins" data-id="${e.id}">−1</button>
+      <button class="btn-ligne btn-mini" data-act="traiter" data-id="${e.id}">✓ Retiré</button>
+      <button class="btn-ligne btn-danger" data-act="suppr" data-id="${e.id}">Suppr.</button>
+    </div>
+  </div></div>`;
+}
+
+function brancherActionsEntrees(){
+  main.querySelectorAll('[data-act]').forEach(b=>{
+    b.addEventListener('click',async()=>{
+      const id=+b.dataset.id, act=b.dataset.act;
+      const e=await get('entrees',id); if(!e) return;
+      if(act==='qte-plus'){e.qte=(e.qte||1)+1;await put('entrees',e);}
+      else if(act==='qte-moins'){e.qte=(e.qte||1)-1; if(e.qte<=0){await supprimer('entrees',id);}else{await put('entrees',e);}}
+      else if(act==='traiter'){e.traite=true;e.dateTraite=Date.now();await put('entrees',e);toast('Marqué comme retiré');}
+      else if(act==='suppr'){await supprimer('entrees',id);toast('Supprimé');}
+      rendre();
+    });
+  });
+}
+
+/* ---------- VUE SCANNER ---------- */
+async function vueScan(){
+  main.innerHTML=`
+    <div class="carte"><div class="carte-corps">
+      <label style="margin-top:0">Zone de scan</label>
+      <input id="champScan" placeholder="Scannez une boîte…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none">
+      <div class="aide-scan">Appuyez sur la <b>gâchette du PDA</b> et visez le carré Datamatrix de la boîte.<br>Le code s'inscrit ici puis s'ajoute automatiquement.</div>
+    </div></div>
+
+    <button class="btn-second" id="btnCam" style="margin-bottom:12px">📷 Scanner avec la caméra</button>
+    <div id="zoneCam" class="cache carte"><div class="carte-corps">
+      <video id="cam" playsinline muted></video>
+      <button class="btn-second" id="btnStopCam" style="margin-top:10px">Arrêter la caméra</button>
+      <div id="camMsg" class="aide-scan"></div>
+    </div></div>
+
+    <button class="btn-second" id="btnManuel">✍️ Ajouter à la main</button>
+    <small class="note">Le scan pro passe par la gâchette (lecteur intégré). La caméra est un secours si la gâchette n'écrit pas dans le champ.</small>
+  `;
+  const champ=document.getElementById('champScan');
+  const focus=()=>{try{champ.focus();}catch(_){}};
+  focus();
+  champ.addEventListener('blur',()=>setTimeout(()=>{if(vueActive==='scan'&&!document.querySelector('.voile')&&document.getElementById('zoneCam').classList.contains('cache'))focus();},150));
+  champ.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      const v=champ.value; champ.value='';
+      if(v.trim()) traiterScan(v);
+    }
+  });
+  document.getElementById('btnManuel').addEventListener('click',()=>ouvrirConfirmation({brut:'',gs1:false},true));
+  document.getElementById('btnCam').addEventListener('click',demarrerCamera);
+  document.getElementById('btnStopCam').addEventListener('click',arreterCamera);
+}
+
+async function traiterScan(brut){
+  const a=analyserCode(brut);
+  ouvrirConfirmation(a,false);
+}
+
+/* ---------- CAMÉRA (BarcodeDetector, sans dépendance) ---------- */
+let fluxCam=null, boucleCam=null, detecteur=null;
+async function demarrerCamera(){
+  const zone=document.getElementById('zoneCam'), video=document.getElementById('cam'), msg=document.getElementById('camMsg');
+  document.getElementById('champScan').blur();
+  zone.classList.remove('cache');
+  if(!('BarcodeDetector' in window)){
+    const ios=/iPad|iPhone|iPod/.test(navigator.userAgent);
+    msg.innerHTML = ios
+      ? "Le scan caméra n'est pas géré par Safari (iOS). Sur iPhone/iPad, utilisez la <b>saisie manuelle</b>. Le scan caméra fonctionne sur le PDA / Android."
+      : "Le scan caméra n'est pas disponible sur ce navigateur. Utilisez la <b>gâchette du PDA</b>.";
+    return;
+  }
+  try{
+    const formats=await BarcodeDetector.getSupportedFormats();
+    detecteur=new BarcodeDetector({formats:formats.filter(f=>['data_matrix','qr_code','ean_13','code_128','ean_8'].includes(f))});
+    fluxCam=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject=fluxCam; await video.play();
+    msg.textContent='Visez le code de la boîte…';
+    const scan=async()=>{
+      if(!fluxCam) return;
+      try{
+        const codes=await detecteur.detect(video);
+        if(codes&&codes.length){
+          const val=codes[0].rawValue;
+          arreterCamera();
+          traiterScan(val);
+          return;
+        }
+      }catch(_){}
+      boucleCam=requestAnimationFrame(scan);
+    };
+    boucleCam=requestAnimationFrame(scan);
+  }catch(err){
+    msg.textContent="Caméra indisponible ("+(err.name||'erreur')+"). Utilisez la gâchette du PDA.";
+  }
+}
+function arreterCamera(){
+  if(boucleCam)cancelAnimationFrame(boucleCam);boucleCam=null;
+  if(fluxCam){fluxCam.getTracks().forEach(t=>t.stop());fluxCam=null;}
+  const z=document.getElementById('zoneCam'); if(z)z.classList.add('cache');
+  if(vueActive==='scan')setTimeout(()=>{const c=document.getElementById('champScan');if(c)c.focus();},100);
+}
+
+/* ---------- MODALE DE CONFIRMATION ---------- */
+async function ouvrirConfirmation(a,manuel){
+  const codeInit = normCip(a.cip13||a.gtin||a.brut||'');
+  const nomConnu = codeInit ? await nomProduit(codeInit) : null;
+  const prodConnu = codeInit ? await get('produits',codeInit) : null;
+  const per = a.peremption ? lirePeremption(a.peremption) : null;
+  const code = codeInit;
+
+  const voile=document.createElement('div'); voile.className='voile';
+  voile.innerHTML=`<div class="modale">
+    <div class="badge-src ${(a.gs1&&a.peremption)?'':'manuel'}">${(a.gs1&&a.peremption)?'📷 Datamatrix lu — péremption détectée':(a.gs1?'📷 Code lu — complétez la péremption':'✍️ Saisie manuelle')}</div>
+    <h2>${nomConnu?echap(nomConnu):'Nouveau produit'}</h2>
+    <div class="info-code">${code?('Code : '+echap(code)):''}</div>
+
+    <label>Nom du produit</label>
+    <input id="mNom" value="${echap(nomConnu||'')}" placeholder="Ex. Doliprane 1000 mg" autocomplete="off">
+
+    <label>Code produit (CIP13)</label>
+    <input id="mCode" value="${echap(code)}" placeholder="Code de la boîte" inputmode="numeric" autocomplete="off">
+
+    <div class="rang">
+      <div>
+        <label>Péremption</label>
+        <input id="mExp" type="month" value="${per?per.iso:''}">
+      </div>
+      <div>
+        <label>Quantité</label>
+        <input id="mQte" type="number" min="1" value="1" inputmode="numeric">
+      </div>
+    </div>
+
+    <label>N° de lot (optionnel)</label>
+    <input id="mLot" value="${echap(a.lot||'')}" placeholder="Lot" autocomplete="off">
+
+    <label>Emplacement / rayon (optionnel)</label>
+    <input id="mEmp" value="${echap(prodConnu?prodConnu.emplacement||'':'')}" placeholder="Ex. Tiroir A3" autocomplete="off">
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-second" id="mAnnuler" style="flex:1">Annuler</button>
+      <button class="btn-principal" id="mValider" style="flex:2">Ajouter au suivi</button>
+    </div>
+  </div>`;
+  document.body.appendChild(voile);
+  const champScan=document.getElementById('champScan'); if(champScan)champScan.blur();
+
+  const fExp=voile.querySelector('#mExp');
+  setTimeout(()=>{ (nomConnu?fExp:voile.querySelector('#mNom')).focus(); },80);
+
+  voile.querySelector('#mAnnuler').addEventListener('click',()=>fermerModale(voile));
+  voile.addEventListener('click',e=>{if(e.target===voile)fermerModale(voile);});
+  voile.querySelector('#mValider').addEventListener('click',async()=>{
+    const nom=voile.querySelector('#mNom').value.trim();
+    const codeF=voile.querySelector('#mCode').value.trim();
+    const exp=voile.querySelector('#mExp').value; // 'AAAA-MM'
+    const qte=Math.max(1,+voile.querySelector('#mQte').value||1);
+    const lot=voile.querySelector('#mLot').value.trim();
+    const emp=voile.querySelector('#mEmp').value.trim();
+    if(!codeF){alert('Indiquez un code produit.');return;}
+    if(!/^\d{4}-\d{2}$/.test(exp)){alert('Indiquez la date de péremption (mois/année).');return;}
+    await ajouterEntree(codeF,nom||'(sans nom)',emp,lot,exp,per?0:1,qte);
+    fermerModale(voile);
+    toast('✅ '+(nom||'Produit')+' ajouté');
+    if(vueActive==='scan'){const c=document.getElementById('champScan');if(c)setTimeout(()=>c.focus(),100);}
+    else rendre();
+  });
+}
+function fermerModale(v){v.remove();if(vueActive==='scan'){const c=document.getElementById('champScan');if(c)setTimeout(()=>c.focus(),100);}}
+
+/* ---------- VUE STOCK (tout le suivi) ---------- */
+async function vueStock(){
+  const toutes=await tout('entrees');
+  const actives=toutes.filter(e=>!e.traite);
+  actives.sort((a,b)=>ymDepuisIso(a.exp)-ymDepuisIso(b.exp));
+  main.innerHTML=`
+    <div class="filtre-rang">
+      <input id="rech" placeholder="🔎 Chercher un produit, lot, code…" autocomplete="off">
+    </div>
+    <div id="listeStock"></div>`;
+  const rech=document.getElementById('rech');
+  const dessiner=()=>{
+    const q=rech.value.trim().toLowerCase();
+    const f=q?actives.filter(e=>(e.nom+' '+e.code+' '+(e.lot||'')).toLowerCase().includes(q)):actives;
+    const cible=document.getElementById('listeStock');
+    if(!f.length){
+      cible.innerHTML=`<div class="vide"><div class="grand">📦</div>${actives.length?'Aucun résultat.':'Aucun produit suivi.<br>Allez dans <b>Scanner</b>.'}</div>`;
+      return;
+    }
+    cible.innerHTML=f.map(carteEntree).join('');
+    brancherActionsEntrees();
+  };
+  rech.addEventListener('input',dessiner);
+  dessiner();
+}
+
+/* ---------- VUE PRODUITS (catalogue) ---------- */
+async function vueProduits(){
+  const prods=(await tout('produits')).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  let html=`<div class="carte"><div class="carte-corps" style="font-size:14px;color:var(--gris)">
+    Catalogue mémorisé : ${prods.length} produit(s). Le nom et l'emplacement se remplissent tout seuls au fil des scans.
+  </div></div>`;
+  if(!prods.length){
+    html+=`<div class="vide"><div class="grand">🏷️</div>Aucun produit encore. Chaque scan enrichit le catalogue.</div>`;
+  }else{
+    html+=prods.map(p=>`<div class="carte"><div class="carte-corps">
+      <div class="prod-nom">${echap(p.nom||'(sans nom)')}</div>
+      <div class="prod-meta">CIP ${echap(p.code)}${p.emplacement?' · <b>'+echap(p.emplacement)+'</b>':''}</div>
+      <div class="ligne-actions">
+        <button class="btn-mini" data-pcode="${echap(p.code)}" data-pact="edit">Modifier</button>
+      </div>
+    </div></div>`).join('');
+  }
+  main.innerHTML=html;
+  main.querySelectorAll('[data-pact="edit"]').forEach(b=>{
+    b.addEventListener('click',()=>editerProduit(b.dataset.pcode));
+  });
+}
+async function editerProduit(code){
+  const p=await get('produits',code)||{code,nom:'',emplacement:''};
+  const voile=document.createElement('div');voile.className='voile';
+  voile.innerHTML=`<div class="modale">
+    <h2>Modifier le produit</h2>
+    <div class="info-code">CIP ${echap(code)}</div>
+    <label>Nom</label><input id="eNom" value="${echap(p.nom||'')}">
+    <label>Emplacement / rayon</label><input id="eEmp" value="${echap(p.emplacement||'')}">
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-second" id="eAnn" style="flex:1">Annuler</button>
+      <button class="btn-principal" id="eOk" style="flex:2">Enregistrer</button>
+    </div></div>`;
+  document.body.appendChild(voile);
+  voile.querySelector('#eAnn').onclick=()=>voile.remove();
+  voile.addEventListener('click',e=>{if(e.target===voile)voile.remove();});
+  voile.querySelector('#eOk').onclick=async()=>{
+    p.nom=voile.querySelector('#eNom').value.trim()||'(sans nom)';
+    p.emplacement=voile.querySelector('#eEmp').value.trim();
+    await put('produits',p);
+    // met à jour le nom sur les entrées actives
+    const es=await tout('entrees');
+    for(const e of es){if(e.code===code&&!e.traite){e.nom=p.nom;await put('entrees',e);}}
+    voile.remove();toast('Produit mis à jour');rendre();
+  };
+}
+
+/* ---------- VUE RÉGLAGES ---------- */
+async function vueReglages(){
+  main.innerHTML=`
+    <div class="carte"><div class="carte-tete">Alertes</div><div class="carte-corps">
+      <label style="margin-top:0">Prévenir combien de mois avant la péremption ?</label>
+      <select id="rHorizon">
+        ${[1,2,3,4,6,12].map(n=>`<option value="${n}" ${REGLAGES.horizon===n?'selected':''}>${n} mois avant</option>`).join('')}
+      </select>
+      <small class="note">Les produits dans cette fenêtre apparaissent dans l'onglet <b>Alertes</b> et sur la pastille rouge.</small>
+    </div></div>
+
+    <div class="carte"><div class="carte-tete">Installer l'application</div><div class="carte-corps">
+      <button class="btn-principal" id="rInstall" style="margin-bottom:8px">📲 Installer sur cet appareil</button>
+      <div id="rInstallAide" class="aide-scan" style="text-align:left"></div>
+    </div></div>
+
+    <div class="carte"><div class="carte-tete">Test du scanner</div><div class="carte-corps">
+      <label style="margin-top:0">Vérifiez que la gâchette écrit ici :</label>
+      <input id="rTest" placeholder="Appuyez sur la gâchette et scannez n'importe quel code" autocomplete="off">
+      <div id="rTestRes" class="aide-scan" style="text-align:left"></div>
+    </div></div>
+
+    <div class="carte"><div class="carte-tete">Catalogue produits (CIP → nom)</div><div class="carte-corps">
+      <div id="rCatInfo" style="font-size:14px;color:var(--gris)"></div>
+      <button class="btn-principal" id="rCatImport" style="margin:10px 0 0">📇 Importer un fichier produits (CSV / JSON)</button>
+      <input type="file" id="rCatFichier" accept=".csv,.json,.txt,text/csv,application/json" class="cache">
+      <small class="note">Un fichier contenant au moins le <b>code CIP</b> et le <b>nom</b> (export de votre LGO, de Pricer ou base ANSM). Les colonnes sont repérées automatiquement. Ensuite, le nom se remplit tout seul à chaque scan.</small>
+    </div></div>
+
+    <div class="carte"><div class="carte-tete">Sauvegarde</div><div class="carte-corps">
+      <button class="btn-principal" id="rExport" style="margin-bottom:10px">💾 Exporter une sauvegarde (.json)</button>
+      <button class="btn-second" id="rImport">📥 Importer une sauvegarde</button>
+      <input type="file" id="rFichier" accept="application/json,.json" class="cache">
+      <small class="note">Exportez régulièrement : les données restent uniquement sur ce PDA. Le fichier réimporte tout (produits + suivi).</small>
+    </div></div>
+
+    <div class="carte"><div class="carte-tete">Entretien</div><div class="carte-corps">
+      <button class="btn-second" id="rVoirTraites">Voir les produits retirés</button>
+      <div style="height:10px"></div>
+      <button class="btn-ligne btn-danger" id="rReset" style="width:100%;justify-content:center">Tout effacer</button>
+    </div></div>
+
+    <small class="note" style="text-align:center">Appli 100% hors-ligne · aucune donnée envoyée · Android · iOS · Honeywell EDA51</small>
+  `;
+
+  document.getElementById('rHorizon').addEventListener('change',async e=>{
+    REGLAGES.horizon=+e.target.value;await sauverReglages();majBadge();toast('Alerte réglée sur '+REGLAGES.horizon+' mois');
+  });
+
+  // Installation PWA
+  const bInstall=document.getElementById('rInstall'), aInstall=document.getElementById('rInstallAide');
+  const enStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(enStandalone){
+    bInstall.classList.add('cache');
+    aInstall.innerHTML='✅ L\'application est déjà installée sur cet appareil.';
+  }else if(ios){
+    bInstall.classList.add('cache');
+    aInstall.innerHTML='<b>Sur iPhone / iPad :</b><br>1. Ouvrez cette page dans <b>Safari</b>.<br>2. Touchez l\'icône <b>Partager</b> (carré avec flèche ↑).<br>3. Choisissez <b>« Sur l\'écran d\'accueil »</b>.';
+  }else if(deferredPrompt){
+    aInstall.innerHTML='Ajoutez l\'application à l\'écran d\'accueil pour l\'ouvrir en un geste, plein écran et hors-ligne.';
+    bInstall.onclick=async()=>{
+      deferredPrompt.prompt();
+      const choix=await deferredPrompt.userChoice;
+      deferredPrompt=null; bInstall.classList.add('cache');
+      aInstall.innerHTML = choix.outcome==='accepted' ? '✅ Installation lancée.' : 'Installation annulée — vous pourrez réessayer via le menu du navigateur.';
+    };
+  }else{
+    bInstall.classList.add('cache');
+    aInstall.innerHTML='Pour installer : ouvrez le menu du navigateur (⋮) puis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.';
+  }
+
+  const t=document.getElementById('rTest'),tr=document.getElementById('rTestRes');
+  setTimeout(()=>t.focus(),100);
+  t.addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'){ev.preventDefault();const v=t.value;t.value='';
+      const a=analyserCode(v);
+      tr.innerHTML=`<b style="color:var(--vert)">✅ Scanner OK.</b><br>Reçu : ${echap(v)}<br>
+        ${a.gtin?'CIP/GTIN : '+echap(a.cip13||a.gtin)+'<br>':''}
+        ${a.peremption?'Péremption détectée : '+echap(a.peremption)+' 🎯<br>':'<i>Pas de péremption dans ce code (normal pour un code-barres simple).</i><br>'}
+        ${a.lot?'Lot : '+echap(a.lot):''}`;
+    }
+  });
+
+  document.getElementById('rExport').addEventListener('click',exporter);
+  document.getElementById('rImport').addEventListener('click',()=>document.getElementById('rFichier').click());
+  document.getElementById('rFichier').addEventListener('change',importer);
+
+  // Catalogue produits
+  const catInfo=document.getElementById('rCatInfo');
+  const nbProd=(await tout('produits')).length;
+  catInfo.innerHTML = nbProd ? ('Catalogue actuel : <b>'+nbProd+'</b> produit(s) connus.') : 'Aucun produit dans le catalogue pour l\'instant.';
+  document.getElementById('rCatImport').onclick=()=>document.getElementById('rCatFichier').click();
+  document.getElementById('rCatFichier').onchange=async(ev)=>{
+    const f=ev.target.files[0]; ev.target.value=''; if(!f)return;
+    catInfo.textContent='Import en cours…';
+    try{
+      const n=await importerCatalogue(f);
+      if(n===0){ alert('Aucun produit reconnu. Le fichier doit contenir une colonne code CIP et une colonne nom.'); }
+      else toast('✅ '+n+' produit(s) importé(s)');
+    }catch(err){
+      alert('Fichier non reconnu. Vérifiez qu\'il contient une colonne code CIP et une colonne nom (CSV ou JSON).');
+    }
+    rendre();
+  };
+  document.getElementById('rVoirTraites').addEventListener('click',voirTraites);
+  document.getElementById('rReset').addEventListener('click',async()=>{
+    if(confirm('Effacer TOUTES les données (produits + suivi) ? Action irréversible.')){
+      if(confirm('Confirmez-vous vraiment la suppression totale ?')){
+        await new Promise(r=>{const t=db.transaction(['entrees','produits'],'readwrite');t.objectStore('entrees').clear();t.objectStore('produits').clear();t.oncomplete=r;});
+        toast('Tout a été effacé');rendre();
+      }
+    }
+  });
+}
+
+async function voirTraites(){
+  const traites=(await tout('entrees')).filter(e=>e.traite).sort((a,b)=>(b.dateTraite||0)-(a.dateTraite||0));
+  const voile=document.createElement('div');voile.className='voile';
+  voile.innerHTML=`<div class="modale"><h2>Produits retirés</h2>
+    ${traites.length?traites.map(e=>`<div class="carte"><div class="carte-corps">
+      <div class="prod-nom" style="font-size:15px">${echap(e.nom)}</div>
+      <div class="prod-meta">Périmait ${libelleMois(e.exp)}${e.lot?' · Lot '+echap(e.lot):''}</div>
+      <div class="ligne-actions">
+        <button class="btn-mini" data-restore="${e.id}">↩ Remettre au suivi</button>
+        <button class="btn-danger btn-ligne" data-del="${e.id}">Suppr.</button>
+      </div></div></div>`).join(''):'<div class="vide">Aucun produit retiré.</div>'}
+    <button class="btn-second" id="fermerT" style="margin-top:14px">Fermer</button></div>`;
+  document.body.appendChild(voile);
+  voile.querySelector('#fermerT').onclick=()=>voile.remove();
+  voile.addEventListener('click',e=>{if(e.target===voile)voile.remove();});
+  voile.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{
+    const e=await get('entrees',+b.dataset.restore);e.traite=false;await put('entrees',e);voile.remove();toast('Remis au suivi');rendre();
+  });
+  voile.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    await supprimer('entrees',+b.dataset.del);b.closest('.carte').remove();rendre();
+  });
+}
+
+async function exporter(){
+  const data={version:1,date:new Date().toISOString(),reglages:REGLAGES,
+    produits:await tout('produits'),entrees:await tout('entrees')};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download='perimes-sauvegarde-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  toast('Sauvegarde exportée');
+}
+async function importer(e){
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!data.entrees&&!data.produits)throw 0;
+    if(!confirm('Importer cette sauvegarde ? Elle remplace les données actuelles.'))return;
+    await new Promise(r=>{const t=db.transaction(['entrees','produits'],'readwrite');t.objectStore('entrees').clear();t.objectStore('produits').clear();t.oncomplete=r;});
+    for(const p of (data.produits||[]))await put('produits',p);
+    for(const en of (data.entrees||[])){delete en.id;await put('entrees',en);}
+    if(data.reglages){REGLAGES={...REGLAGES,...data.reglages};await sauverReglages();}
+    toast('Sauvegarde importée');rendre();
+  }catch(_){alert("Fichier invalide.");}
+  e.target.value='';
+}
+
+/* ---------- Utilitaires ---------- */
+function normCip(s){
+  let d=String(s==null?'':s).replace(/\D/g,'');
+  if(d.length===14 && d[0]==='0') d=d.slice(1); // GTIN14 -> CIP13
+  return d || String(s==null?'':s).trim();
+}
+
+/* --- Import d'un catalogue produits (CSV ou JSON), colonnes auto-détectées --- */
+function detecterDelim(txt){
+  const l=(txt.split(/\r?\n/).find(x=>x.trim())||'');
+  let best=';', n=-1;
+  for(const d of [';','\t',',','|']){ const c=l.split(d).length; if(c>n){n=c;best=d;} }
+  return best;
+}
+function parseCSV(txt){
+  const delim=detecterDelim(txt), rows=[];
+  for(const ligne of txt.split(/\r?\n/)){
+    if(ligne==='') continue;
+    const champs=[]; let cur='', q=false;
+    for(let i=0;i<ligne.length;i++){
+      const ch=ligne[i];
+      if(q){ if(ch==='"'){ if(ligne[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+      else { if(ch==='"') q=true; else if(ch===delim){champs.push(cur);cur='';} else cur+=ch; }
+    }
+    champs.push(cur);
+    rows.push(champs.map(s=>s.trim()));
+  }
+  return rows;
+}
+function trouverColonnes(rows){
+  const head=(rows[0]||[]).map(h=>h.toLowerCase());
+  const idx=re=>head.findIndex(h=>re.test(h));
+  let iCip=idx(/cip|gencod|ean|code.?barre|barcode|code.?produit/);
+  let iNom=idx(/nom|libell|d[eé]sign|produit|article|name|d[eé]nomination/);
+  let iEmp=idx(/emplac|rayon|localis|zone|tiroir|lin[eé]aire/);
+  let start=1;
+  if(iCip<0 || iNom<0){
+    start=0;
+    const nCols=Math.max(...rows.map(r=>r.length));
+    let bCip=-1,sCip=-1,bNom=-1,sNom=-1;
+    for(let c=0;c<nCols;c++){
+      let cip=0,txt=0,lenTot=0;
+      for(const r of rows){
+        const v=r[c]||''; const d=v.replace(/\D/g,'');
+        if(d.length>=12 && d.length<=14) cip++;
+        if(/[A-Za-zÀ-ÿ]{3,}/.test(v)){ txt++; lenTot+=v.length; }
+      }
+      if(cip>sCip){sCip=cip;bCip=c;}
+      const sc=txt*20+lenTot;
+      if(sc>sNom){sNom=sc;bNom=c;}
+    }
+    if(iCip<0) iCip=bCip;
+    if(iNom<0) iNom=(bNom===iCip? -1 : bNom);
+    if(iNom<0){ for(let c=0;c<nCols;c++){ if(c!==iCip){iNom=c;break;} } }
+  }
+  return {iCip,iNom,iEmp,start};
+}
+async function importerDepuisTexte(txt){
+  txt=String(txt||'').replace(/^\uFEFF/,'');
+  const t=txt.trim();
+  let produits=[];
+  if(t[0]==='{' || t[0]==='['){
+    const j=JSON.parse(t);
+    const arr=Array.isArray(j)?j:(j.produits||Object.entries(j).map(([k,v])=>({code:k,nom:(v&&v.nom)||v})));
+    produits=arr.map(o=>({
+      code:o.code||o.cip||o.cip13||o.gencod||o.ean,
+      nom:o.nom||o.name||o.libelle||o.designation||o['libellé']||o['désignation'],
+      emplacement:o.emplacement||o.rayon||''
+    }));
+  }else{
+    const rows=parseCSV(t).filter(r=>r.some(c=>c!==''));
+    if(!rows.length) throw new Error('vide');
+    const {iCip,iNom,iEmp,start}=trouverColonnes(rows);
+    if(iCip<0 || iNom<0) throw new Error('colonnes');
+    for(let i=start;i<rows.length;i++){
+      const r=rows[i];
+      produits.push({code:r[iCip], nom:r[iNom], emplacement:iEmp>=0?r[iEmp]:''});
+    }
+  }
+  // Insertion rapide en une seule transaction (préserve les emplacements existants)
+  const existMap=new Map();
+  (await tout('produits')).forEach(p=>existMap.set(p.code,p));
+  let n=0;
+  await new Promise((res,rej)=>{
+    const store=db.transaction('produits','readwrite').objectStore('produits');
+    for(const p of produits){
+      const code=normCip(p.code||'');
+      const nom=(p.nom||'').toString().trim();
+      if(!code || code.length<8 || !nom) continue;
+      const ex=existMap.get(code);
+      store.put({code,nom,emplacement:((p.emplacement||'').toString().trim())||(ex&&ex.emplacement)||'',maj:Date.now()});
+      n++;
+    }
+    store.transaction.oncomplete=()=>res();
+    store.transaction.onerror=()=>rej(store.transaction.error);
+  });
+  return n;
+}
+async function importerCatalogue(file){
+  return importerDepuisTexte(await file.text());
+}
+
+function echap(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+let tId=null;
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);clearTimeout(tId);
+  tId=setTimeout(()=>t.remove(),2200);
+}
+function afficherDate(){
+  const j=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const m=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const d=new Date();
+  document.getElementById('dateJour').textContent=j[d.getDay()]+' '+d.getDate()+' '+m[d.getMonth()]+' '+d.getFullYear();
+}
+
+/* ---------- PWA : installation + service worker ---------- */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;});
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+
+/* ---------- Base produits intégrée au dépôt (data/produits.csv) ----------
+   Chargée automatiquement au 1er lancement (et à chaque changement de version).
+   Pour mettre à jour : remplacez data/produits.csv, puis incrémentez SEED_VERSION
+   ci-dessous ET la version du cache dans sw.js. */
+const SEED_VERSION='v1';
+async function chargerBaseIntegree(){
+  try{
+    const r=await get('reglages','seed');
+    if(r && r.val===SEED_VERSION) return;                 // déjà importée
+    let rep;
+    try{ rep=await fetch('./data/produits.csv',{cache:'no-cache'}); }catch(_){ return; }
+    if(!rep || !rep.ok) return;                            // pas de fichier -> on ignore
+    const txt=await rep.text();
+    if(txt && txt.trim()){ try{ await importerDepuisTexte(txt); }catch(_){} }
+    await put('reglages',{cle:'seed',val:SEED_VERSION});
+  }catch(_){}
+}
+
+/* ---------- Démarrage ---------- */
+(async function(){
+  afficherDate();
+  try{ await ouvrirDB(); await chargerReglages(); }
+  catch(err){ main.innerHTML='<div class="vide"><div class="grand">⚠️</div>Impossible d\'ouvrir la base locale.<br>'+echap(err&&err.message||err)+'</div>'; return; }
+  document.getElementById('titrePharma').textContent=REGLAGES.pharma;
+  await chargerBaseIntegree();
+  rendre();
+})();
+</script>
+</body>
+</html>
