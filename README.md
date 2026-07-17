@@ -7,34 +7,7 @@ Fonctionne sur **Android**, **iOS** et sur le **PDA Honeywell EDA51**. Aucune do
 
 ---
 
-## 1. Mettre en ligne sur GitHub Pages
-
-### Option A — par le site GitHub (le plus simple)
-
-1. Sur https://github.com, cliquez **New** pour créer un dépôt, par exemple `perimes-pharmacie`. Laissez-le **Public**.
-2. Dans le dépôt : **Add file → Upload files**, puis glissez **tout le contenu de ce dossier** (le fichier `index.html`, `manifest.webmanifest`, `sw.js`, `.nojekyll` et le dossier `icons/`). **Ne glissez pas le dossier parent**, mais bien les fichiers qui sont dedans.
-3. **Commit changes**.
-4. Onglet **Settings → Pages**. Sous *Build and deployment* → *Source*, choisissez **Deploy from a branch**, branche **main**, dossier **/ (root)**, puis **Save**.
-5. Après une minute, l'adresse s'affiche, du type :
-   `https://VOTRE-COMPTE.github.io/perimes-pharmacie/`
-
-> ⚠️ Le service worker (mode hors-ligne) n'est actif qu'en **HTTPS**. GitHub Pages est en HTTPS : c'est parfait. Il ne fonctionne pas en ouvrant le fichier directement depuis le disque (`file://`).
-
-### Option B — en ligne de commande
-
-```bash
-git init
-git add .
-git commit -m "PWA gestion des périmés"
-git branch -M main
-git remote add origin https://github.com/VOTRE-COMPTE/perimes-pharmacie.git
-git push -u origin main
-```
-Puis activez **Settings → Pages** comme ci-dessus.
-
----
-
-## 2. Installer l'application
+## 1. Installer l'application
 
 Ouvrez l'adresse GitHub Pages sur l'appareil, puis :
 
@@ -45,7 +18,7 @@ Un bouton **« Installer sur cet appareil »** est aussi proposé dans l'onglet 
 
 ---
 
-## 3. Le scan sur le PDA Honeywell EDA51
+## 2. Le scan sur le PDA Honeywell EDA51
 
 Le PDA a un lecteur intégré. Pour qu'il « tape » le code dans l'app, il doit être en mode **clavier (keyboard wedge)** :
 
@@ -55,48 +28,39 @@ Le PDA a un lecteur intégré. Pour qu'il « tape » le code dans l'app, il doit
 
 Sur les boîtes de médicaments françaises, le **Datamatrix** contient déjà le code CIP13, la **date de péremption** et le **lot** : le scan les remplit automatiquement.
 
----
+### Scan par appareil photo (Android **et** iOS)
 
-## 4. La base produits intégrée — `data/produits.csv`
+L'app propose un bouton **« Scanner avec la caméra »** qui lit le **Datamatrix** et les codes-barres classiques :
 
-Le dépôt contient un fichier **`data/produits.csv`** qui sert de base de données CIP → nom. L'application le **charge automatiquement** au premier lancement (et à chaque changement de version), sur chaque appareil, sans import manuel.
+- **Android / Chrome** : utilise le moteur de décodage intégré au navigateur (rapide, rien à télécharger).
+- **iPhone / iPad (Safari)** et autres cas : Safari n'a pas de moteur intégré, l'app charge alors la librairie open-source **ZXing**, **fournie directement dans le dépôt** (`vendor/zxing.min.js`). Aucun service externe n'est contacté et la caméra fonctionne hors-ligne.
+- Il faut **autoriser l'accès à la caméra** à la première utilisation, et le site doit être en **HTTPS** (GitHub Pages l'est).
 
-Le fichier livré ne contient que **3 lignes d'exemple** : remplacez-le par votre propre liste.
-
-**Format attendu** (séparateur `;`, une ligne d'en-tête) :
-
-```
-cip;nom;emplacement
-3400930000000;Doliprane 1000 mg comprimé;Tiroir A1
-3400930000017;Efferalgan 500 mg comprimé;Rayon 3
-```
-
-- Seules **deux colonnes sont obligatoires** : le **code CIP** et le **nom**. La colonne `emplacement` est facultative.
-- Les noms de colonnes et l'ordre sont libres : l'app repère seule « cip / gencod / ean / code produit » et « nom / libellé / désignation… ». Un export brut de votre LGO fonctionne tel quel, même avec des colonnes en plus (stock, prix, TVA…) qui seront ignorées.
-- Le CIP peut être en 13 chiffres (CIP13) ou 14 (GTIN) : la correspondance est faite automatiquement.
-
-**Pour mettre votre liste :**
-
-1. Exportez votre fichier produits depuis **Smart Rx** (extraction de l'état de stock / inventaire, ou Smart Rx Perf → export CSV). Si c'est un Excel, faites *Enregistrer sous → CSV (séparateur ;)*.
-2. Renommez-le **`produits.csv`** et placez-le dans le dossier **`data/`** du dépôt (remplacez celui d'exemple).
-3. Dans `index.html`, incrémentez `const SEED_VERSION='v1';` (→ `'v2'`, etc.) pour que les appareils déjà installés rechargent la nouvelle liste.
-4. Dans `sw.js`, incrémentez aussi `const CACHE = 'perimes-v3';`.
-5. Poussez sur GitHub. Au prochain lancement, chaque appareil récupère la base à jour.
-
-> À défaut d'export Smart Rx, vous pouvez aussi utiliser la **Base de données publique des médicaments** (ANSM, open data) comme source. Demandez-moi si vous voulez que je vous prépare ce fichier.
-
-On peut aussi importer une liste ponctuellement, sans passer par le dépôt, via **Réglages → Catalogue produits**.
+> ZXing (`@zxing/library` 0.19.1) est déjà inclus dans `vendor/zxing.min.js` : rien à télécharger. Si vous supprimez ce fichier, l'app bascule automatiquement sur un CDN (voir `vendor/LISEZMOI.txt`).
 
 ---
 
-## 5. Mettre à jour l'application plus tard
+## 3. La base produits intégrée — `data/produits.json`
+
+Le dépôt contient **`data/produits.json`**, la base **CIP → nom** générée depuis votre inventaire Smart Rx : **~118 500 produits** (catalogue complet). L'application la **charge en mémoire au démarrage** (chargement non bloquant), puis remplit le nom automatiquement à chaque scan.
+
+- Le fichier n'est **pas recopié dans la mémoire du téléphone** : il *est* la base, mise en cache hors-ligne par le service worker. C'est ce qui permet de gérer 118 000 produits sans ralentir l'appareil.
+- Les noms saisis ou corrigés à la main (via **Réglages → Catalogue produits**, ou l'édition d'une fiche) ont la **priorité** sur la base intégrée.
+
+**Mettre à jour la liste plus tard :** ré-exportez l'inventaire depuis Smart Rx et régénérez `data/produits.json` (format : un objet JSON `{"cip13":"nom", …}`, en UTF-8). L'export brut Smart Rx est en jeu de caractères DOS (cp850) avec des CIP espacés : il doit être converti avant. Le plus simple est de me renvoyer le nouvel export, je régénère le fichier. Pensez ensuite à incrémenter `const CACHE` dans `sw.js` pour que les appareils déjà installés rechargent la base.
+
+Pour des **ajouts ou corrections ponctuels**, l'onglet **Réglages → Catalogue produits** accepte aussi un CSV/JSON (colonnes CIP + nom repérées automatiquement) qui vient compléter la base intégrée.
+
+---
+
+## 4. Mettre à jour l'application plus tard
 
 1. Modifiez `index.html` (ou un autre fichier) et ré-uploadez-le sur GitHub.
-2. Dans `sw.js`, changez la ligne `const CACHE = 'perimes-v3';` en `'perimes-v4'`, etc. Cela force les appareils à récupérer la nouvelle version au prochain lancement.
+2. Dans `sw.js`, changez la ligne `const CACHE = 'perimes-v4';` en `'perimes-v5'`, etc. Cela force les appareils à récupérer la nouvelle version au prochain lancement.
 
 ---
 
-## 6. Sauvegarde des données
+## 5. Sauvegarde des données
 
 Les données restent sur chaque appareil. Depuis **Réglages → Sauvegarde**, exportez un fichier `.json` régulièrement (surtout sur iOS, où le navigateur peut effacer les données en cas de manque de place). Le même fichier permet de tout réimporter, ou de transférer le suivi d'un appareil à un autre.
 
@@ -109,6 +73,8 @@ index.html               L'application (un seul fichier)
 manifest.webmanifest     Métadonnées d'installation (nom, icônes, couleurs)
 sw.js                    Service worker (fonctionnement hors-ligne)
 .nojekyll                Sert les fichiers tels quels sur GitHub Pages
-data/produits.csv        Base produits CIP -> nom (à remplacer par votre export)
+data/produits.json       Base produits CIP -> nom (~118 500 réf., depuis Smart Rx)
+vendor/zxing.min.js      Lecteur caméra ZXing (auto-hébergé, iOS + Android)
+vendor/LISEZMOI.txt      Note sur le lecteur ZXing / mise à jour
 icons/                   Icônes de l'application
 ```

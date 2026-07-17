@@ -141,7 +141,7 @@
 
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;background:var(--vert-fonce);color:#fff;padding:12px 18px;border-radius:12px;font-size:15px;font-weight:600;z-index:60;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:90%;text-align:center}
 
-  #cam{width:100%;border-radius:12px;background:#000;display:block}
+  #cam{width:100%;max-height:60vh;object-fit:cover;border-radius:12px;background:#000;display:block}
   .filtre-rang{display:flex;gap:8px;margin-bottom:10px}
   .filtre-rang input{flex:1}
   small.note{display:block;color:var(--gris);font-size:12.5px;margin-top:6px;line-height:1.45}
@@ -300,7 +300,10 @@ function statut(iso){
    ENTRÉES / PRODUITS
    ========================================================= */
 async function nomProduit(code){
-  const p=await get('produits',normCip(code));
+  const cc=normCip(code);
+  const p=await get('produits',cc);
+  if(p && p.nom && p.nom!=='(sans nom)') return p.nom;   // priorité aux fiches saisies/corrigées
+  if(BASE_PRODUITS && BASE_PRODUITS[cc]) return BASE_PRODUITS[cc];  // base intégrée (118k produits)
   return p?p.nom:null;
 }
 async function ajouterEntree(code,nom,emplacement,lot,iso,jour,qte){
@@ -446,7 +449,7 @@ async function vueScan(){
     </div></div>
 
     <button class="btn-second" id="btnManuel">✍️ Ajouter à la main</button>
-    <small class="note">Le scan pro passe par la gâchette (lecteur intégré). La caméra est un secours si la gâchette n'écrit pas dans le champ.</small>
+    <small class="note">La caméra fonctionne sur <b>Android et iOS</b> (Datamatrix + codes-barres). Sur le PDA, la <b>gâchette</b> reste la plus rapide.</small>
   `;
   const champ=document.getElementById('champScan');
   const focus=()=>{try{champ.focus();}catch(_){}};
@@ -469,46 +472,93 @@ async function traiterScan(brut){
   ouvrirConfirmation(a,false);
 }
 
-/* ---------- CAMÉRA (BarcodeDetector, sans dépendance) ---------- */
-let fluxCam=null, boucleCam=null, detecteur=null;
+/* ---------- CAMÉRA : moteur natif (Android/Chrome) ou ZXing (iOS & autres) ---------- */
+let fluxCam=null, boucleCam=null, detecteur=null, zxingReader=null;
+/* ZXing est chargé à la demande. On tente d'abord une copie locale (./vendor),
+   puis un CDN. Une fois chargé, le service worker le garde en cache hors-ligne. */
+const ZXING_SRCS=[
+  './vendor/zxing.min.js',
+  'https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js',
+  'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js'
+];
+function chargerZXing(){
+  if(window.ZXing && ZXing.BrowserMultiFormatReader) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    let i=0;
+    const suivant=()=>{
+      if(i>=ZXING_SRCS.length){ reject(new Error('lecteur indisponible')); return; }
+      const s=document.createElement('script');
+      s.src=ZXING_SRCS[i++]; s.async=true;
+      s.onload=()=>{ (window.ZXing && ZXing.BrowserMultiFormatReader) ? resolve() : suivant(); };
+      s.onerror=()=>suivant();
+      document.head.appendChild(s);
+    };
+    suivant();
+  });
+}
+async function detecteurNatifOK(){
+  if(!('BarcodeDetector' in window)) return false;
+  try{ return (await BarcodeDetector.getSupportedFormats()).includes('data_matrix'); }
+  catch(_){ return false; }
+}
 async function demarrerCamera(){
   const zone=document.getElementById('zoneCam'), video=document.getElementById('cam'), msg=document.getElementById('camMsg');
   document.getElementById('champScan').blur();
   zone.classList.remove('cache');
-  if(!('BarcodeDetector' in window)){
-    const ios=/iPad|iPhone|iPod/.test(navigator.userAgent);
-    msg.innerHTML = ios
-      ? "Le scan caméra n'est pas géré par Safari (iOS). Sur iPhone/iPad, utilisez la <b>saisie manuelle</b>. Le scan caméra fonctionne sur le PDA / Android."
-      : "Le scan caméra n'est pas disponible sur ce navigateur. Utilisez la <b>gâchette du PDA</b>.";
-    return;
-  }
+  msg.textContent='Démarrage de la caméra…';
   try{
-    const formats=await BarcodeDetector.getSupportedFormats();
-    detecteur=new BarcodeDetector({formats:formats.filter(f=>['data_matrix','qr_code','ean_13','code_128','ean_8'].includes(f))});
-    fluxCam=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    video.srcObject=fluxCam; await video.play();
-    msg.textContent='Visez le code de la boîte…';
-    const scan=async()=>{
-      if(!fluxCam) return;
-      try{
-        const codes=await detecteur.detect(video);
-        if(codes&&codes.length){
-          const val=codes[0].rawValue;
-          arreterCamera();
-          traiterScan(val);
-          return;
-        }
-      }catch(_){}
-      boucleCam=requestAnimationFrame(scan);
-    };
-    boucleCam=requestAnimationFrame(scan);
+    if(await detecteurNatifOK()) await cameraNative(video,msg);
+    else await cameraZXing(video,msg);
   }catch(err){
-    msg.textContent="Caméra indisponible ("+(err.name||'erreur')+"). Utilisez la gâchette du PDA.";
+    const nom=(err&&(err.name||err.message))||'erreur';
+    if(nom==='NotAllowedError'||nom==='SecurityError')
+      msg.innerHTML="Accès caméra refusé. Autorisez la caméra pour ce site (réglages du navigateur), puis réessayez.";
+    else
+      msg.innerHTML="Caméra indisponible ("+echap(nom)+").<br>Utilisez la gâchette du PDA ou la saisie manuelle.";
+  }
+}
+async function cameraNative(video,msg){
+  const formats=await BarcodeDetector.getSupportedFormats();
+  detecteur=new BarcodeDetector({formats:formats.filter(f=>['data_matrix','qr_code','ean_13','code_128','ean_8'].includes(f))});
+  fluxCam=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+  video.srcObject=fluxCam; await video.play();
+  msg.textContent='Visez le Datamatrix de la boîte…';
+  const scan=async()=>{
+    if(!fluxCam) return;
+    try{
+      const codes=await detecteur.detect(video);
+      if(codes&&codes.length){ const val=codes[0].rawValue; arreterCamera(); traiterScan(val); return; }
+    }catch(_){}
+    boucleCam=requestAnimationFrame(scan);
+  };
+  boucleCam=requestAnimationFrame(scan);
+}
+async function cameraZXing(video,msg){
+  msg.textContent='Chargement du lecteur…';
+  await chargerZXing();
+  const H=ZXing.DecodeHintType, F=ZXing.BarcodeFormat;
+  const hints=new Map();
+  hints.set(H.POSSIBLE_FORMATS,[F.DATA_MATRIX,F.EAN_13,F.EAN_8,F.CODE_128,F.QR_CODE,F.CODE_39]);
+  hints.set(H.TRY_HARDER,true);
+  try{ hints.set(H.ASSUME_GS1,true); }catch(_){}
+  zxingReader=new ZXing.BrowserMultiFormatReader(hints);
+  msg.textContent='Visez le Datamatrix de la boîte…';
+  const cb=(result)=>{ if(result){ const v=result.getText?result.getText():(''+result); arreterCamera(); traiterScan(v); } };
+  const contraintes={audio:false,video:{facingMode:{ideal:'environment'}}};
+  try{
+    if(typeof zxingReader.decodeFromConstraints==='function') await zxingReader.decodeFromConstraints(contraintes, video, cb);
+    else await zxingReader.decodeFromVideoDevice(undefined, video, cb);
+  }catch(_){
+    await zxingReader.decodeFromVideoDevice(undefined, video, cb);
   }
 }
 function arreterCamera(){
   if(boucleCam)cancelAnimationFrame(boucleCam);boucleCam=null;
-  if(fluxCam){fluxCam.getTracks().forEach(t=>t.stop());fluxCam=null;}
+  detecteur=null;
+  if(zxingReader){ try{ zxingReader.reset(); }catch(_){} zxingReader=null; }
+  if(fluxCam){ fluxCam.getTracks().forEach(t=>t.stop()); fluxCam=null; }
+  const v=document.getElementById('cam');
+  if(v){ try{ if(v.srcObject && v.srcObject.getTracks) v.srcObject.getTracks().forEach(t=>t.stop()); v.srcObject=null; }catch(_){} }
   const z=document.getElementById('zoneCam'); if(z)z.classList.add('cache');
   if(vueActive==='scan')setTimeout(()=>{const c=document.getElementById('champScan');if(c)c.focus();},100);
 }
@@ -681,7 +731,7 @@ async function vueReglages(){
       <div id="rCatInfo" style="font-size:14px;color:var(--gris)"></div>
       <button class="btn-principal" id="rCatImport" style="margin:10px 0 0">📇 Importer un fichier produits (CSV / JSON)</button>
       <input type="file" id="rCatFichier" accept=".csv,.json,.txt,text/csv,application/json" class="cache">
-      <small class="note">Un fichier contenant au moins le <b>code CIP</b> et le <b>nom</b> (export de votre LGO, de Pricer ou base ANSM). Les colonnes sont repérées automatiquement. Ensuite, le nom se remplit tout seul à chaque scan.</small>
+      <small class="note">La base intégrée couvre déjà tout le catalogue. Cet import sert à <b>ajouter ou corriger</b> des produits (CSV ou JSON avec au moins le code CIP et le nom). Les colonnes sont repérées automatiquement.</small>
     </div></div>
 
     <div class="carte"><div class="carte-tete">Sauvegarde</div><div class="carte-corps">
@@ -746,7 +796,8 @@ async function vueReglages(){
   // Catalogue produits
   const catInfo=document.getElementById('rCatInfo');
   const nbProd=(await tout('produits')).length;
-  catInfo.innerHTML = nbProd ? ('Catalogue actuel : <b>'+nbProd+'</b> produit(s) connus.') : 'Aucun produit dans le catalogue pour l\'instant.';
+  const base=BASE_COUNT?('Base intégrée : <b>'+BASE_COUNT.toLocaleString('fr-FR')+'</b> produits.'):'Base intégrée en cours de chargement…';
+  catInfo.innerHTML = base + (nbProd?(' <br>Ajouts / corrections locales : <b>'+nbProd+'</b>.'):'');
   document.getElementById('rCatImport').onclick=()=>document.getElementById('rCatFichier').click();
   document.getElementById('rCatFichier').onchange=async(ev)=>{
     const f=ev.target.files[0]; ev.target.value=''; if(!f)return;
@@ -943,22 +994,20 @@ if('serviceWorker' in navigator){
   });
 }
 
-/* ---------- Base produits intégrée au dépôt (data/produits.csv) ----------
-   Chargée automatiquement au 1er lancement (et à chaque changement de version).
-   Pour mettre à jour : remplacez data/produits.csv, puis incrémentez SEED_VERSION
-   ci-dessous ET la version du cache dans sw.js. */
-const SEED_VERSION='v1';
+/* ---------- Base produits intégrée au dépôt (data/produits.json) ----------
+   ~118 000 produits (CIP13 -> nom), chargés EN MÉMOIRE au démarrage.
+   Pas d'écriture dans la base locale : le fichier EST la base (mis en cache
+   hors-ligne par le service worker). Pour mettre à jour la liste, remplacez
+   data/produits.json et incrémentez la version du cache dans sw.js. */
+let BASE_PRODUITS=null, BASE_COUNT=0;
 async function chargerBaseIntegree(){
   try{
-    const r=await get('reglages','seed');
-    if(r && r.val===SEED_VERSION) return;                 // déjà importée
-    let rep;
-    try{ rep=await fetch('./data/produits.csv',{cache:'no-cache'}); }catch(_){ return; }
-    if(!rep || !rep.ok) return;                            // pas de fichier -> on ignore
-    const txt=await rep.text();
-    if(txt && txt.trim()){ try{ await importerDepuisTexte(txt); }catch(_){} }
-    await put('reglages',{cle:'seed',val:SEED_VERSION});
-  }catch(_){}
+    const rep=await fetch('./data/produits.json');
+    if(!rep || !rep.ok) return 0;
+    BASE_PRODUITS=await rep.json();
+    BASE_COUNT=BASE_PRODUITS ? Object.keys(BASE_PRODUITS).length : 0;
+    return BASE_COUNT;
+  }catch(_){ return 0; }
 }
 
 /* ---------- Démarrage ---------- */
@@ -967,8 +1016,9 @@ async function chargerBaseIntegree(){
   try{ await ouvrirDB(); await chargerReglages(); }
   catch(err){ main.innerHTML='<div class="vide"><div class="grand">⚠️</div>Impossible d\'ouvrir la base locale.<br>'+echap(err&&err.message||err)+'</div>'; return; }
   document.getElementById('titrePharma').textContent=REGLAGES.pharma;
-  await chargerBaseIntegree();
   rendre();
+  // Chargement non bloquant de la base produits (gros fichier) : l'app reste réactive
+  chargerBaseIntegree().then(n=>{ if(n && (vueActive==='reglages'||vueActive==='produits')) rendre(); });
 })();
 </script>
 </body>
